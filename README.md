@@ -16,8 +16,8 @@ writes 10 m canopy-height maps next to three published products, with a short re
 | KG-UNet1 | UNet pre-trained on US airborne lidar (UNet-ALS), fine-tuned on the GEDI labels |
 | KG-UNet2 | as KG-UNet1, guided by UNet-ALS and UNet-SLS as teachers |
 
-Benchmarks shown alongside: GMTCH (Meta, Tolan et al. 2024), GFCH (UMD, Potapov et al. 2021), HRCH (ETH, Lang et
-al. 2023).
+Benchmarks shown alongside: GMTCH (Meta, [Tolan et al. 2024](https://doi.org/10.1016/j.rse.2023.113888)),
+GFCH (UMD, [Potapov et al. 2021](https://doi.org/10.1016/j.rse.2020.112165)), HRCH (ETH, [Lang et al. 2023](https://doi.org/10.1038/s41559-023-02206-6)).
 
 ## Google Colab (nothing to install)
 
@@ -70,7 +70,7 @@ A CUDA GPU is strongly recommended for the UNets. Every stage can be resumed aft
 ## Weights and data
 
 - UNet-ALS weights: assets of the [v1.0.0 release](https://github.com/Link-dev/chm-tool/releases/tag/v1.0.0),
-  trained on canopy-height models derived from USGS 3DEP lidar (Allred et al. 2025).
+  trained on canopy-height models derived from USGS 3DEP lidar ([Allred et al. 2025](https://doi.org/10.1038/s41597-025-04655-z)).
 - The paper's site models and evaluation data: Zenodo ([DOI]).
 
 ## Citation
@@ -82,5 +82,5 @@ If you use this tool, please cite the paper (see [CITATION.cff](CITATION.cff)):
 
 ## License
 
-Code and weights: [MIT](LICENSE). The Sentinel-1 processing includes gee_s1_ard (Mullissa et al. 2021, MIT), see
+Code and weights: [MIT](LICENSE). The Sentinel-1 processing includes gee_s1_ard ([Mullissa et al. 2021](https://doi.org/10.3390/rs13101954), MIT), see
 `src/canopy_height/tool/gee/third_party/gee_s1_ard/LICENSE`.

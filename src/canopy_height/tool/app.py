@@ -168,10 +168,10 @@ layers, rebuilds the training stack and trains the models again.
   needs UNet-SLS of the same project, which is trained first.
 
 ### Benchmarks
-- **GMTCH**: Meta high-resolution canopy height (Tolan et al. 2024), 1 m, aggregated to the 90th percentile of
+- **GMTCH**: Meta high-resolution canopy height ([Tolan et al. 2024](https://doi.org/10.1016/j.rse.2023.113888)), 1 m, aggregated to the 90th percentile of
   every 10 m pixel.
-- **GFCH**: UMD global forest canopy height 2019 (Potapov et al. 2021), 30 m.
-- **HRCH**: ETH global canopy height 2020 (Lang et al. 2023), 10 m.
+- **GFCH**: UMD global forest canopy height 2019 ([Potapov et al. 2021](https://doi.org/10.1016/j.rse.2020.112165)), 30 m.
+- **HRCH**: ETH global canopy height 2020 ([Lang et al. 2023](https://doi.org/10.1038/s41559-023-02206-6)), 10 m.
 
 ### GEDI labels
 GEDI is NASA's spaceborne lidar on the International Space Station. The tool uses the gridded GEDI L2A shots

@@ -14,9 +14,9 @@ labels from Google Earth Engine, trains the paper's four local models with the p
 
 | Benchmark | Product |
 |---|---|
-| GMTCH | Meta high-resolution canopy height (Tolan et al. 2024), 1 m, aggregated to the 10 m 90th percentile |
-| GFCH | UMD global forest canopy height 2019 (Potapov et al. 2021), 30 m |
-| HRCH | ETH global canopy height 2020 (Lang et al. 2023), 10 m |
+| GMTCH | Meta high-resolution canopy height ([Tolan et al. 2024](https://doi.org/10.1016/j.rse.2023.113888)), 1 m, aggregated to the 10 m 90th percentile |
+| GFCH | UMD global forest canopy height 2019 ([Potapov et al. 2021](https://doi.org/10.1016/j.rse.2020.112165)), 30 m |
+| HRCH | ETH global canopy height 2020 ([Lang et al. 2023](https://doi.org/10.1038/s41559-023-02206-6)), 10 m |
 
 ## What you need
 
