@@ -15,76 +15,52 @@ def code(text):
 
 
 md(r"""
-# Canopy height for your study area (chm-tool on Google Colab)
+# Canopy height for your study area (chm-tool)
 
-This notebook applies the method of *Leveraging cross-sensor LiDAR observations and Earth embeddings for canopy
-height prediction* to a study area you choose. It downloads the model inputs and gridded GEDI labels from Google
-Earth Engine, trains the paper's four local models (RF-SLS, UNet-SLS, KG-UNet1, KG-UNet2) with the paper's
-settings, and makes 10 m canopy-height maps next to three published products (GMTCH, GFCH, HRCH).
-
-Nothing to upload: the code is installed from https://github.com/Link-dev/chm-tool and the pre-trained weights
-are downloaded from its release. The documentation is in the repository (`docs/tool.md`).
+10 m canopy-height maps for a study area you choose, with the models of *Leveraging cross-sensor LiDAR
+observations and Earth embeddings for canopy height prediction*. The notebook downloads the inputs and GEDI labels
+from Google Earth Engine, trains four local models (RF-SLS, UNet-SLS, KG-UNet1, KG-UNet2) and shows their maps next
+to GMTCH, GFCH and HRCH. Documentation: [github.com/Link-dev/chm-tool](https://github.com/Link-dev/chm-tool).
 
 **You need**
-- a Google account, and a Google Cloud project registered for Earth Engine (free for non-commercial use:
-  https://code.earthengine.google.com/register);
-- a GPU runtime for the UNets (*Runtime > Change runtime type > T4 GPU*). To save GPU time, start on a CPU
-  runtime: without a GPU, cell 7 downloads, builds the training stack and trains RF-SLS (none of which uses a GPU),
-  then stops. Switch to a T4 GPU runtime, run the cells from the top again, and cell 7 trains the UNets; everything
-  finished is kept. Colab charges a runtime for as long as it is connected, whether the GPU is used or not;
-- space on Google Drive: the project folder is kept there so a run can resume after the session ends. The default
-  training region of 400 cells (2.56 km each) needs about 20 GB with the default input AE, more than the free
-  15 GB of Drive; about 250 cells fit (cell 5 prints the estimate for your area). The input A (no Earth
-  embedding) needs about a third; the input E (embedding only) downloads much faster but is as large as AE.
+- a Google Cloud project registered for Earth Engine
+  ([free for non-commercial use](https://code.earthengine.google.com/register));
+- a T4 GPU runtime for the UNets (*Runtime > Change runtime type*). Without a GPU, cell 7 stops after the steps
+  that need none (download, training data, RF-SLS): switch to a GPU runtime and run the notebook again;
+- space on Google Drive, where the project is kept: about 20 GB for the default 400 cells with input AE (cell 5
+  prints the estimate for your area).
 
-**Input representations** (cell 1, `INPUT`): which satellite layers the models read. Letters: **A** = annual
-Sentinel-1/2 + DEM, **E** = Earth embedding (Google Satellite Embedding), **T** = four seasonal (temporal)
-Sentinel-1/2 composites + DEM.
+Set everything in cell 1 and run the cells in order. If the session ends, run them again: finished parts are kept.
 
-| Input | Model input | Channels | Pre-trained UNet-ALS |
-|---|---|---|---|
-| **AE** (default) | Earth embedding + annual Sentinel-1/2 + DEM (the paper's main results) | 76 | `UNet-ALS.pth` |
-| **A** | annual Sentinel-1/2 + DEM | 12 | `UNet-A-ALS.pth` |
-| **E** | Earth embedding (no Sentinel-1: by far the cheapest download) | 64 | `UNet-E-ALS.pth` |
-| **T** | four-season Sentinel-1/2 + DEM | 45 | `UNet-T-ALS.pth` |
-| **TE** | Earth embedding + four-season Sentinel-1/2 + DEM | 109 | `UNet-TE-ALS.pth` |
-
-AE and A were called IE and I in earlier versions. When you open an existing project, the input chosen in cell 1
-replaces the project's: a different input downloads the missing layers and trains the models again.
-
-**How long** (default 400 cells): Earth Engine downloads take a few hours (depending on your project's quota);
-training takes about 1.5 hours on a T4 (measured: input E, 410 cells; the three UNets 1 h 18 min). Colab sessions end after at most ~12 hours or when idle: just run the
-notebook again from the top, finished parts are kept.
-
-Run the cells in order. Cell 1 holds all settings.
+| Input | Layers |
+|---|---|
+| **AE** (default) | Earth embedding + annual Sentinel-1/2 + DEM |
+| **A** | annual Sentinel-1/2 + DEM |
+| **E** | Earth embedding (fastest download) |
+| **T** | four-season Sentinel-1/2 + DEM |
+| **TE** | Earth embedding + four-season Sentinel-1/2 + DEM |
 """)
 
 code(r"""
 #@title 1. Settings
 PROJECT_NAME = "my_area"            #@param {type:"string"}
 GEE_PROJECT = ""                    #@param {type:"string"}
-INPUT = "AE: Earth embedding + annual Sentinel-1/2 + DEM (paper's main results)"  #@param ["AE: Earth embedding + annual Sentinel-1/2 + DEM (paper's main results)", "A: annual Sentinel-1/2 + DEM", "E: Earth embedding (cheapest download)", "T: four-season Sentinel-1/2 + DEM", "TE: Earth embedding + four-season Sentinel-1/2 + DEM"]
+INPUT = "AE: Earth embedding + annual Sentinel-1/2 + DEM"  #@param ["AE: Earth embedding + annual Sentinel-1/2 + DEM", "A: annual Sentinel-1/2 + DEM", "E: Earth embedding (fastest download)", "T: four-season Sentinel-1/2 + DEM", "TE: Earth embedding + four-season Sentinel-1/2 + DEM"]
 YEAR = 2020                         #@param {type:"integer"}
 TRAIN_CELLS = 400                   #@param {type:"integer"}
-#@markdown Study area: a longitude / latitude box, a shape drawn on a map (cell 4), a file on Google Drive or an
-#@markdown uploaded file (shapefile as .zip, GeoJSON, GeoPackage, KML).
+#@markdown Study area: a longitude / latitude box, a shape drawn on a map (cell 4), a file on Google Drive, or an
+#@markdown uploaded file (zipped shapefile, GeoJSON, GeoPackage, KML).
 AOI_MODE = "box"                    #@param ["box", "draw", "drive file", "upload"]
 WEST = 173.44                       #@param {type:"number"}
 SOUTH = -41.29                      #@param {type:"number"}
 EAST = 173.53                       #@param {type:"number"}
 NORTH = -41.22                      #@param {type:"number"}
 AOI_FILE = "/content/drive/MyDrive/chm-tool/study_area.geojson"                #@param {type:"string"}
-#@markdown Parallel Earth Engine requests (1 if your project allows only one at a time), and the last stage to run
-#@markdown in cell 7 (without a GPU, cell 7 stops after RF-SLS anyway: then switch to a GPU runtime and run again).
+#@markdown **Advanced** (the defaults are fine): parallel Earth Engine requests, Sentinel-1 processing ("local" uses
+#@markdown far less Earth Engine quota), the last stage to run, and where the project, code and weights are.
 WORKERS = 3                         #@param {type:"integer"}
-#@markdown Sentinel-1 processing (inputs AE, A, T, TE): "local" = Earth Engine serves the raw scenes and this runtime
-#@markdown runs the speckle filter and terrain flattening (about 1/10 of the Earth Engine quota, ~1e-5 dB from the
-#@markdown paper's rasters); "gee" = on Earth Engine, the paper's pipeline bit for bit.
 S1_METHOD = "local"                 #@param ["local", "gee"]
 RUN_TO = "report"                   #@param ["plan", "download", "stack", "train", "predict", "report"]
-#@markdown Where the projects are kept on Google Drive, and where the code and the UNet-ALS weights come from
-#@markdown (defaults: the GitHub repository and its release; code can also be a .zip or folder on Drive or another
-#@markdown pip / git URL, weights a folder on Drive or another URL prefix).
 DRIVE_DIR = "/content/drive/MyDrive/chm-tool"                                  #@param {type:"string"}
 CODE_SOURCE = "git+https://github.com/Link-dev/chm-tool@main"                  #@param {type:"string"}
 WEIGHTS_SOURCE = "https://github.com/Link-dev/chm-tool/releases/download/v1.0.0"  #@param {type:"string"}
@@ -120,18 +96,16 @@ import importlib
 importlib.invalidate_caches()
 import canopy_height
 from canopy_height.tool import colab
-print("canopy_height", canopy_height.__file__)
+print("chm-tool", canopy_height.__version__, "installed")
 """)
 
 code(r"""
 #@title 3. Session check and Earth Engine sign-in
 env = colab.environment()
-print(env)
+print(f"GPU: {env['gpu'] or 'none'}; RAM: {env['ram_gb']} GB")
 SESSION_SETTINGS, warnings = colab.colab_settings(env)
 for w in warnings:
     print("WARNING:", w)
-if SESSION_SETTINGS:
-    print("settings for this session:", SESSION_SETTINGS)
 
 import ee
 from canopy_height.tool.gee import io as gee_io
@@ -227,11 +201,9 @@ print("disk use (GB):", colab.storage(p))
 
 md(r"""
 **Notes**
-- The maps are in `maps/` of the project folder on Drive (float32 GeoTIFF, metres, the study area's UTM zone).
-- The agreement with GEDI in the report is *not* an independent accuracy: the local models were trained on these
-  labels. See [docs/tool.md](https://github.com/Link-dev/chm-tool/blob/main/docs/tool.md) for what the tool does
-  and for all settings (`project.yaml` in the project folder).
-- RF-SLS fits at most 500 000 labelled pixels in sessions with < 16 GB RAM (above the paper's training sets).
+- The maps are in `maps/` of the project folder on Drive (GeoTIFF, metres).
+- The agreement with GEDI in the report is not an independent accuracy: the models were trained on these labels.
+- All settings: [docs/tool.md](https://github.com/Link-dev/chm-tool/blob/main/docs/tool.md).
 """)
 
 nb = dict(nbformat=4, nbformat_minor=5, cells=CELLS,

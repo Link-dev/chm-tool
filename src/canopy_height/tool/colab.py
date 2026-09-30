@@ -323,8 +323,6 @@ def cap_loader_workers(project, log=print):
         o.setdefault("num_workers", n)
         over[m] = o
     project.cfg["train_overrides"] = over
-    log(f"{n} CPU cores: the UNets load their data with {n} worker(s) instead of {RECIPE_WORKERS} (less memory, same "
-        "models)")
 
 
 def _run(project, to_stage, from_stage, workers, cache, log, gpu):
@@ -530,7 +528,6 @@ def storage_estimate(project, log=print):
     if "rf-sls" in project["models"]:
         rf = min(project["rf_max_rows"], RF_PIXELS_PER_CELL * n) * RF_KB_PER_PIXEL / 1e6
     gb = n * mb / 1e3 + rf + FIXED_GB
-    log(f"{n} cells x {mb:.0f} MB (downloads + training stack) + RF-SLS forest ~{rf:.1f} GB + {FIXED_GB} GB")
     try:
         free = _gb(shutil.disk_usage(project.root).free) + sum(storage(project).values())
     except OSError:
