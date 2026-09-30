@@ -1,0 +1,13 @@
+__pycache__/
+*.py[co]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# model weights: assets of the GitHub release, not part of the repository
+weights/
+*.pth
+*.joblib
+*.pkl

@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the paper below."
+title: "chm-tool: canopy height for your own study area"
+type: software
+version: 1.0.0
+license: MIT
+repository-code: "https://github.com/Link-dev/chm-tool"
+authors:
+  - family-names: Zhou
+    given-names: Junxiong
+preferred-citation:
+  type: article
+  title: "Leveraging cross-sensor LiDAR observations and Earth embeddings for canopy height prediction"
+  status: submitted
+  authors:
+    - family-names: Zhou
+      given-names: Junxiong

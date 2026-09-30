@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "canopy-height"
+version = "1.0.0"
+description = "Canopy height from Sentinel-1/2, DEM and Earth embeddings with UNets supervised by airborne and spaceborne lidar"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{name = "Junxiong Zhou"}]
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.24", "torch>=2.1", "scikit-learn>=1.3", "rasterio>=1.3", "pyyaml"]
+
+[project.urls]
+Homepage = "https://github.com/Link-dev/chm-tool"
+Documentation = "https://github.com/Link-dev/chm-tool/blob/main/docs/tool.md"
+
+[project.optional-dependencies]
+# the study-area tool (Earth Engine download, planning, report, Streamlit interface)
+tool = ["pandas", "geopandas", "pyogrio", "shapely>=2", "pyproj", "scipy", "earthengine-api", "requests", "matplotlib",
+        "streamlit>=1.37", "folium", "streamlit-folium", "psutil"]
+# the Google Colab notebook (notebooks/chm_tool_colab.ipynb): the tool without Streamlit, plus the drawing map
+colab = ["pandas", "geopandas", "pyogrio", "shapely>=2", "pyproj", "scipy", "earthengine-api", "requests", "matplotlib",
+         "folium", "psutil", "ipyleaflet"]
+
+[project.scripts]
+chm = "canopy_height.cli:main"
+chm-tool = "canopy_height.tool.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+canopy_height = ["data/*.npz", "tool/gee/third_party/gee_s1_ard/LICENSE"]
