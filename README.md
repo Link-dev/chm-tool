@@ -56,9 +56,9 @@ A CUDA GPU is strongly recommended for the UNets. Every stage can be resumed aft
 
 | Input | Model input | Weights |
 |---|---|---|
-| **AE** (default, the paper's main results) | Earth embedding + annual Sentinel-1/2 + DEM | `UNet-ALS.pth` |
+| **AE** (default) | Earth embedding + annual Sentinel-1/2 + DEM | `UNet-ALS.pth` |
 | A | annual Sentinel-1/2 + DEM | `UNet-A-ALS.pth` |
-| E | Earth embedding (cheapest download) | `UNet-E-ALS.pth` |
+| E | Earth embedding | `UNet-E-ALS.pth` |
 | T | four-season Sentinel-1/2 + DEM | `UNet-T-ALS.pth` |
 | TE | Earth embedding + four-season Sentinel-1/2 + DEM | `UNet-TE-ALS.pth` |
 

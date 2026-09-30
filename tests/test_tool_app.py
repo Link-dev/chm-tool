@@ -427,7 +427,7 @@ def test_page_without_project():
     assert [t.label for t in at.tabs] == ["1 Study area", "2 Settings", "3 Run", "4 Results", "5 Help"]
     assert at.sidebar.radio[0].value == "Open existing"
     help_text = " ".join(m.value for m in at.markdown)
-    assert "main results use AE" in help_text and "UNet-TE-ALS.pth" in help_text
+    assert "**AE** (the default)" in help_text and "UNet-TE-ALS.pth" in help_text
     assert "No agreement with GEDI in the report is an independent accuracy" in help_text
     assert "HRCH (ETH) and GFCH (UMD) were calibrated" in help_text
 

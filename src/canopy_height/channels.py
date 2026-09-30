@@ -26,7 +26,7 @@ assert len(ANNUAL_BANDS) == 76 and len(SEASONAL_BANDS) == 44
 
 # Input representations (the letters: A = annual Sentinel-1/2 + DEM, E = Earth embedding, T = four seasonal
 # (temporal) Sentinel-1/2 composites + DEM):
-#   AE  embedding + annual Sentinel-1/2 + DEM (76 channels; the paper's main results)
+#   AE  embedding + annual Sentinel-1/2 + DEM (76 channels)
 #   A   annual Sentinel-1/2 + DEM (12)
 #   E   embedding (64)
 #   T   DEM + four-season Sentinel-1/2 (45)
@@ -34,7 +34,7 @@ assert len(ANNUAL_BANDS) == 76 and len(SEASONAL_BANDS) == 44
 # AE and A were called IE and I before; those names are still accepted (ALIASES), e.g. in checkpoints, RF
 # metadata and project files written earlier, and are translated to the current ones by canonical().
 DESCRIPTIONS = {
-    "AE": "Earth embedding + annual Sentinel-1/2 + DEM (paper's main results)",
+    "AE": "Earth embedding + annual Sentinel-1/2 + DEM",
     "A": "annual Sentinel-1/2 + DEM",
     "E": "Earth embedding",
     "T": "four-season Sentinel-1/2 + DEM",

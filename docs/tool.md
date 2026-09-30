@@ -93,9 +93,9 @@ The helpers are in `canopy_height.tool.colab`; install with `pip install ".[cola
 
 | `--input` | Model input | UNet-ALS used | Downloads |
 |---|---|---|---|
-| **AE** (default, the paper's main results) | Earth embedding + annual Sentinel-1/2 + DEM (76 channels) | `UNet-ALS.pth` | embedding, annual S1 + S2 |
+| **AE** (default) | Earth embedding + annual Sentinel-1/2 + DEM (76 channels) | `UNet-ALS.pth` | embedding, annual S1 + S2 |
 | A | annual Sentinel-1/2 + DEM (12) | `UNet-A-ALS.pth` | annual S1 + S2 |
-| E | Earth embedding (64) | `UNet-E-ALS.pth` | embedding only: by far the cheapest |
+| E | Earth embedding (64) | `UNet-E-ALS.pth` | embedding only |
 | T | four-season Sentinel-1/2 + DEM (45) | `UNet-T-ALS.pth` | seasonal S1 + S2 |
 | TE | Earth embedding + four-season Sentinel-1/2 + DEM (109) | `UNet-TE-ALS.pth` | embedding, seasonal S1 + S2 |
 

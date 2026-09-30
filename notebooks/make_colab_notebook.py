@@ -36,7 +36,7 @@ Set everything in cell 1 and run the cells in order. If the session ends, run th
 |---|---|
 | **AE** (default) | Earth embedding + annual Sentinel-1/2 + DEM |
 | **A** | annual Sentinel-1/2 + DEM |
-| **E** | Earth embedding (fastest download) |
+| **E** | Earth embedding |
 | **T** | four-season Sentinel-1/2 + DEM |
 | **TE** | Earth embedding + four-season Sentinel-1/2 + DEM |
 """)
@@ -45,7 +45,7 @@ code(r"""
 #@title 1. Settings
 PROJECT_NAME = "my_area"            #@param {type:"string"}
 GEE_PROJECT = ""                    #@param {type:"string"}
-INPUT = "AE: Earth embedding + annual Sentinel-1/2 + DEM"  #@param ["AE: Earth embedding + annual Sentinel-1/2 + DEM", "A: annual Sentinel-1/2 + DEM", "E: Earth embedding (fastest download)", "T: four-season Sentinel-1/2 + DEM", "TE: Earth embedding + four-season Sentinel-1/2 + DEM"]
+INPUT = "AE: Earth embedding + annual Sentinel-1/2 + DEM"  #@param ["AE: Earth embedding + annual Sentinel-1/2 + DEM", "A: annual Sentinel-1/2 + DEM", "E: Earth embedding", "T: four-season Sentinel-1/2 + DEM", "TE: Earth embedding + four-season Sentinel-1/2 + DEM"]
 YEAR = 2020                         #@param {type:"integer"}
 TRAIN_CELLS = 400                   #@param {type:"integer"}
 #@markdown Study area: a longitude / latitude box, a shape drawn on a map (cell 4), a file on Google Drive, or an

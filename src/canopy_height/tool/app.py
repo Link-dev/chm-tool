@@ -98,11 +98,11 @@ AUTH_NOTE = (
     "`earthengine authenticate --auth_mode=notebook` in a terminal instead.")
 INPUT_NOTE = (
     "Sentinel-1 takes more than 90 % of the Earth Engine compute of a cell (speckle filtering and terrain "
-    "flattening of every scene), so E (no Sentinel-1) is by far the cheapest download. AE and A need the annual "
+    "flattening of every scene). AE and A need the annual "
     "Sentinel-1 composite; T and TE need the four seasonal Sentinel-1 composites (together about the compute of "
     "the annual one) plus four seasonal Sentinel-2 composites. Layers a representation does not use are not "
     "downloaded. All four models are trained on the chosen input; KG-UNet1/2 start from its UNet-ALS checkpoint "
-    "(pre-trained on US airborne lidar with the same input). The paper's main results use AE.")
+    "(pre-trained on US airborne lidar with the same input). AE is the default.")
 GEDI_NOTE = (
     "No agreement with GEDI in this report is an independent accuracy: the local models were trained on these "
     "GEDI labels (the chips of the GEDI validation are held out from the UNets' training but hold labels of the "
@@ -145,11 +145,11 @@ Which of them the models read is the **input representation** (tab 2; also at th
 
 {_help_inputs()}
 
-**The paper's main results use AE** (the default): the satellite embedding with the annual Sentinel-1 / 2
+**AE** (the default) is the satellite embedding with the annual Sentinel-1 / 2
 composites and the DEM. Every representation has its own UNet-ALS checkpoint, pre-trained on the same US airborne
 lidar (USGS 3DEP) with that input, from which KG-UNet1/2 start; RF-SLS and UNet-SLS are trained on the same input.
 Layers a representation does not use are not downloaded (the DEM always comes with the GEDI labels). Sentinel-1
-takes more than 90 % of the Earth Engine compute, so E, without Sentinel-1, is by far the cheapest download; T and
+takes more than 90 % of the Earth Engine compute; T and
 TE need the four seasonal Sentinel-1 composites (together about the compute of the annual one) and four seasonal
 Sentinel-2 composites. The representation can be changed after downloading: the next run downloads the missing
 layers, rebuilds the training stack and trains the models again.
@@ -946,7 +946,7 @@ def _input_picker(p):
         ss[key] = current            # first show, or project.yaml changed meanwhile (saved here or elsewhere)
     ss[key + ":stored"] = current
     inp = st.selectbox("Input representation", opts, key=key, format_func=_input_label,
-                       help="The satellite layers the models read. Default and paper's main results: AE.")
+                       help="The satellite layers the models read. Default: AE.")
     st.dataframe(input_table(), hide_index=True)
     st.caption(INPUT_NOTE)
     base = p["base_model"] if p is not None else None

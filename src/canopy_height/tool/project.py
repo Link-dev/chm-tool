@@ -51,11 +51,11 @@ BENCHMARKS = {                                       # product -> file layer (GM
 # + DEM; AE and A were called IE and I before, and those names are still accepted (canonical_input).
 INPUTS = _Inputs({
     "AE": dict(checkpoint="UNet-ALS.pth", annual=["Embedding", "DEM", "S1", "S2"], seasonal=False,
-               label="Earth embedding + annual Sentinel-1/2 + DEM (paper's main results)"),
+               label="Earth embedding + annual Sentinel-1/2 + DEM"),
     "A": dict(checkpoint="UNet-A-ALS.pth", annual=["DEM", "S1", "S2"], seasonal=False,
               label="annual Sentinel-1/2 + DEM (no embedding)"),
     "E": dict(checkpoint="UNet-E-ALS.pth", annual=["Embedding", "DEM"], seasonal=False,
-              label="Earth embedding only (no Sentinel-1: cheapest download)"),
+              label="Earth embedding only (no Sentinel-1)"),
     "T": dict(checkpoint="UNet-T-ALS.pth", annual=["DEM"], seasonal=True,
               label="four-season Sentinel-1/2 + DEM (no embedding)"),
     "TE": dict(checkpoint="UNet-TE-ALS.pth", annual=["Embedding", "DEM"], seasonal=True,
