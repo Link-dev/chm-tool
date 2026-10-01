@@ -33,9 +33,7 @@ aggregated to the 10 m grid (90th percentile of the 10 x 10 cells) with `chm pre
 `UNet-ALS.pth` is the source-domain UNet (76-channel input). It is used for prediction without local
 training, and it is the starting point and ALS teacher of KG-UNet1 / KG-UNet2. It and the UNet-ALS of the other
 input representations are assets of the [GitHub release](https://github.com/Link-dev/chm-tool/releases) (put them
-in `weights/source/`). The paper's site models (NEON and the five international sites) are archived with the
-evaluation data on Zenodo ([DOI]). Checkpoints store their input layout and normalisation; `chm info <checkpoint>`
-shows them.
+in `weights/source/`). Checkpoints store their input layout and normalisation; `chm info <checkpoint>` shows them.
 
 ## Train on local GEDI labels
 

@@ -71,7 +71,7 @@ A CUDA GPU is strongly recommended for the UNets. Every stage can be resumed aft
 
 - UNet-ALS weights: assets of the [v1.0.0 release](https://github.com/Link-dev/chm-tool/releases/tag/v1.0.0),
   trained on canopy-height models derived from USGS 3DEP lidar ([Allred et al. 2025](https://doi.org/10.1038/s41597-025-04655-z)).
-- The paper's site models and evaluation data: Zenodo ([DOI]).
+- The paper's evaluation data: Zenodo ([DOI]).
 
 ## Citation
 
