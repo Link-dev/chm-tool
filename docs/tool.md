@@ -146,7 +146,7 @@ Rasters record the way in their `s1_method` tag; changing the setting keeps exis
 | Download, annual inputs + GEDI + benchmarks | 16 cells, 1 Earth Engine worker, project in throttled mode | 12 min |
 | Download, seasonal S1/S2 (T / TE) | 16 cells | 9 min |
 | RF-SLS | training region of 439 cells, 380 k pixels (CPU) | 8 min |
-| UNet-SLS / KG-UNet1 / KG-UNet2 | training region of 439 cells | 22 / 10 / 10 min |
+| UNet-SLS / KG-UNet1 / KG-UNet2 | training region of 439 cells | up to 33 / 10 / 10 min |
 | Predict + report | 2 x 2 cells | seconds |
 
 A training region of the default 400 cells therefore needs a few hours of Earth Engine downloads (depending on

@@ -158,8 +158,9 @@ layers, rebuilds the training stack and trains the models again.
 - **RF-SLS**: a random forest (600 trees) that predicts canopy height pixel by pixel from the 76 input bands,
   trained on the local GEDI labels ("SLS": spaceborne-lidar supervision). It is the per-pixel baseline of the
   paper and runs on the CPU.
-- **UNet-SLS**: a UNet trained from scratch on 256 x 256 chips with the local GEDI labels (100 epochs). Unlike
-  the random forest it uses the spatial context of every pixel.
+- **UNet-SLS**: a UNet trained from scratch on 256 x 256 chips with the local GEDI labels (at most 150 epochs,
+  stopped when the validation loss has not improved for 15 epochs). Unlike the random forest it uses the spatial
+  context of every pixel.
 - **KG-UNet1**: starts from UNet-ALS, the paper's UNet pre-trained on US airborne lidar (USGS 3DEP), and
   fine-tunes its last two blocks on the local GEDI labels (50 epochs). The airborne-lidar knowledge guides the
   model where the GEDI labels are sparse.

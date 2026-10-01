@@ -53,9 +53,9 @@ KG-UNet2 needs the site's UNet-SLS as its GEDI teacher, so train UNet-SLS first.
 | Recipe | Start | Trained blocks | Defaults |
 |---|---|---|---|
 | `rf-sls` | - | - | pixels with label > 0; 80 % fit a RandomForest (600 trees, max_depth 50, min_samples_leaf 4, max_features sqrt, random_state 42) |
-| `unet-sls` | random | all | 100 epochs, batch 25, Adam 5e-4, lr x 0.5 after epoch 50, last epoch kept |
-| `kg-unet1` | UNet-ALS | `up4`, `outc` | as unet-sls, 50 epochs |
-| `kg-unet2` | UNet-ALS | `up4`, `outc` | as kg-unet1; loss 0.5 x label + 0.25 x gradient agreement with UNet-ALS + 0.25 x agreement with UNet-SLS after 4 x 4 average pooling, teacher terms from epoch 11; zero labels treated as missing |
+| `unet-sls` | random | all | at most 150 epochs, early stop after 15 epochs without a lower validation loss, best epoch kept; batch 25, Adam 5e-4, lr x 0.5 after epoch 50 |
+| `kg-unet1` | UNet-ALS | `up4`, `outc` | 50 epochs, batch 25, Adam 5e-4, last epoch kept |
+| `kg-unet2` | UNet-ALS | `up4`, `outc` | as kg-unet1; loss 0.5 x label + 0.25 x gradient agreement with UNet-ALS + 0.25 x agreement with UNet-SLS after 4 x 4 average pooling, teacher terms from epoch 11 (gate 10); zero labels treated as missing |
 
 All UNet recipes use an 80/20 chip split (`train_test_split`, random_state 42) and seed 42. Every
 setting can be changed on the command line (`chm train --help`) or with `--config file.yaml`.

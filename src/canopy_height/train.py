@@ -37,7 +37,7 @@ _COMMON = dict(input="AE", init=None, trainable=None, epochs=100, batch_size=25,
                patience=None, zero_to_nodata=False, zero_restore=None, kg2=None, num_workers=None,
                gpus=1, val_workers=1)
 RECIPES = {
-    "unet-sls": dict(_COMMON),
+    "unet-sls": dict(_COMMON, epochs=150, patience=15, select="best"),
     "kg-unet1": dict(_COMMON, init="base", trainable=["up4", "outc"], epochs=50),
     "kg-unet2": dict(_COMMON, init="base", trainable=["up4", "outc"], epochs=50, zero_to_nodata=True,
                      kg2=dict(mode="add", pool=4, gate=10, w_label=0.5, w_als=0.25, w_sls=0.25)),
