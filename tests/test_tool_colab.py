@@ -120,7 +120,7 @@ def test_fetch_weights_checks_sha256(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="sha256"):
         colab.fetch_weights("E", tmp_path / "w", dest=tmp_path / "dest", log=lambda *a: None)
     assert not (tmp_path / "dest" / "source" / "UNet-E-ALS.pth").exists()
-    monkeypatch.setitem(colab.CHECKPOINT_SHA256, "UNet-E-ALS.pth", colab.sha256(src / "UNet-E-ALS.pth"))
+    monkeypatch.setitem(colab.weights.SHA256, "source/UNet-E-ALS.pth", colab.weights.sha256(src / "UNet-E-ALS.pth"))
     out = colab.fetch_weights("E", tmp_path / "w", dest=tmp_path / "dest", log=lambda *a: None)
     assert out.exists()
     import os

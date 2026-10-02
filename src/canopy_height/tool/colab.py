@@ -1,12 +1,12 @@
-"""Helpers of the Google Colab notebook (notebooks/chm_tool_colab.ipynb): the same stages as `chm-tool run`, with
-what a Colab session needs around them. Nothing here imports Streamlit, and nothing changes the recipes.
+"""Helpers of the Google Colab notebooks (notebooks/chm_finetune.ipynb, chm_pretrained.ipynb): the same stages as
+`chm-tool run`, with what a Colab session needs around them. Nothing here imports Streamlit, and nothing changes the recipes.
 
 - environment() / colab_settings(): GPU, RAM and disk of the session; the RF-SLS row cap for its RAM. The paper's
   batch size 25 fits a T4 (measured on a 439-cell training region: UNet-SLS peaks at 9.6 GB allocated, KG-UNet2 at
   6.8 GB), so the UNets keep the paper's settings. RF-SLS grows with its training rows (380 k rows -> 4 GB forest,
   8 GB while loading), so on < 16 GB RAM rf_max_rows is capped at 500 k (above the paper's training sets).
-- fetch_weights(): only the UNet-ALS checkpoint of the chosen input representation (124 MB), from a folder (e.g.
-  Google Drive) or a URL, checked against its sha256, then $CHM_WEIGHTS points at it.
+- fetch_weights(): only the UNet-ALS checkpoint of the chosen input representation (124 MB), from the published
+  weights (tool.weights) or a folder (e.g. Google Drive), checked against its sha256, then $CHM_WEIGHTS points at it.
 - aoi_from_bbox() / AoiDrawer: the study area from a longitude / latitude box or drawn on an ipyleaflet map.
 - run(): if the Drive mount goes away mid-run, Drive is mounted again and the run continues (DriveDisconnected
   after repeated failures).
@@ -17,23 +17,14 @@ what a Colab session needs around them. Nothing here imports Streamlit, and noth
 - results_map() / metrics_table() / storage(): the results and the project's disk use.
 """
 import errno
-import hashlib
 import json
 import os
 import shutil
-import urllib.request
 from pathlib import Path
 
+from . import weights
 from .project import BENCHMARKS, INPUTS, MODEL_NAMES, MODELS, STAGES, Project
 
-# sha256 of the UNet-ALS checkpoints (assets of the GitHub release, project.WEIGHTS_URL)
-CHECKPOINT_SHA256 = {
-    "UNet-ALS.pth": "b86e3b93e6b25d31326a67da243f098d959067fdbe3cdda731a242370a554a81",
-    "UNet-E-ALS.pth": "f4796f364f30026a603fc2ac59023cdfc136f1018ae9cb966c454a4b32e7c97a",
-    "UNet-A-ALS.pth": "41f0897b704f71581e38159d9716d0d52706bbbedefbc3007e48fad376a0ba1e",
-    "UNet-T-ALS.pth": "61fecd223dc46b8aed38d4df67fe8fddf09a19d188419e0e7138d401f23ba0fa",
-    "UNet-TE-ALS.pth": "b51ba6fc6861b0dc51feb4c680ec2e1fb27543c6d67dee9344372d774f6f9b86",
-}
 BENCHMARK_REFS = {"GMTCH": "Meta, Tolan et al. 2024", "GFCH": "UMD, Potapov et al. 2021", "HRCH": "ETH, Lang et al. 2023"}
 COLAB_RF_MAX_ROWS = 500_000        # RF-SLS row cap below 16 GB RAM (380 k rows -> 4 GB forest, 8 GB peak on load)
 LOW_RAM_GB = 16.0
@@ -86,41 +77,11 @@ def colab_settings(env=None):
 
 
 # ---------------------------------------------------------------------------------------------- weights
-def sha256(path):
-    h = hashlib.sha256()
-    with open(path, "rb") as fh:
-        for chunk in iter(lambda: fh.read(1 << 24), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-
-def fetch_weights(inp, source, dest="/content/chm_weights", log=print):
-    """Put the UNet-ALS checkpoint of input representation `inp` into dest/source/ and point $CHM_WEIGHTS at dest.
-    `source`: a folder holding the checkpoint (directly or in source/, e.g. the release's weights/ folder copied to
-    Google Drive) or a URL prefix the file name is appended to. The file is checked against its sha256."""
+def fetch_weights(inp, source=weights.WEIGHTS_URL, dest="/content/chm_weights", log=print):
+    """Put the UNet-ALS checkpoint of input representation `inp` into dest/source/ (weights.fetch: from the
+    published weights or a folder, sha256-checked) and point $CHM_WEIGHTS at dest."""
     name = INPUTS[inp]["checkpoint"]                    # INPUTS also finds the aliases IE, I
-    out = Path(dest) / "source" / name
-    want = CHECKPOINT_SHA256[name]
-    if not (out.exists() and sha256(out) == want):
-        out.parent.mkdir(parents=True, exist_ok=True)
-        tmp = out.with_name(name + ".part")
-        s = str(source)
-        if s.startswith(("http://", "https://")):
-            url = s.rstrip("/") + "/" + name
-            log(f"downloading {url}")
-            urllib.request.urlretrieve(url, tmp)
-        else:
-            cands = [Path(s) / "source" / name, Path(s) / name]
-            src = next((c for c in cands if c.exists()), None)
-            if src is None:
-                raise FileNotFoundError(f"{name} not found in {s} (looked for {', '.join(map(str, cands))})")
-            log(f"copying {src}")
-            shutil.copyfile(src, tmp)
-        got = sha256(tmp)
-        if got != want:
-            tmp.unlink()
-            raise ValueError(f"{name}: sha256 {got} differs from the release's {want} (incomplete or wrong file)")
-        os.replace(tmp, out)
+    out = weights.fetch(f"source/{name}", source, dest, log=log)
     os.environ["CHM_WEIGHTS"] = str(Path(dest))
     log(f"{name}: ok ({out})")
     return out
@@ -138,10 +99,11 @@ def aoi_from_bbox(west, south, east, north):
 
 
 class AoiDrawer:
-    """ipyleaflet map to draw the study area (rectangle or polygon); .geometry is the last shape drawn. In Colab,
+    """ipyleaflet map to draw the study area (rectangle or polygon); .geometry is the last shape drawn; `outline`:
+    a GeoJSON geometry shown in green (e.g. the region of chm_pretrained.ipynb). In Colab,
     google.colab.output.enable_custom_widget_manager() must run first (done here)."""
 
-    def __init__(self, center=(20.0, 0.0), zoom=2, height="500px"):
+    def __init__(self, center=(20.0, 0.0), zoom=2, height="500px", outline=None):
         import ipyleaflet as L
         if in_colab():
             from google.colab import output
@@ -153,6 +115,9 @@ class AoiDrawer:
         dc = L.DrawControl(polyline={}, circlemarker={}, marker={}, circle={},
                            rectangle={"shapeOptions": {"color": "#e41a1c"}},
                            polygon={"shapeOptions": {"color": "#e41a1c"}})
+        if outline is not None:
+            self.map.add(L.GeoJSON(data=outline, name="region",
+                                   style={"color": "#2e7d32", "weight": 2, "fillOpacity": 0.1}))
         dc.on_draw(self._drawn)
         self.map.add(dc)
         self.map.add(L.SearchControl(position="topright", url="https://nominatim.openstreetmap.org/search?format=json&q={s}",
@@ -380,7 +345,8 @@ def status_table(project):
 def result_layers(project):
     """[(name, GeoTIFF, block reduction)] of the maps, benchmarks, ALS and GEDI in the project (as the app)."""
     p = project
-    out = [(MODEL_NAMES[m], p.map_file(m), "mean") for m in MODELS if p.map_file(m).exists()]
+    names = ["UNet-ALS"] + [MODEL_NAMES[m] for m in MODELS]          # UNet-ALS: maps of chm_pretrained.ipynb
+    out = [(n, p.path("maps", f"{n}.tif"), "mean") for n in names if p.path("maps", f"{n}.tif").exists()]
     out += [(f"{b} ({BENCHMARK_REFS[b]})", p.mosaic(b), "mean") for b in BENCHMARKS if p.mosaic(b).exists()]
     if p.mosaic("ALS").exists():
         out.append(("ALS reference", p.mosaic("ALS"), "mean"))

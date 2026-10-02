@@ -24,9 +24,9 @@ labels from Google Earth Engine, trains the paper's four local models with the p
   recommended for the UNets. With the paper's batch size of 25, UNet-SLS needs about 14 GB of GPU memory and
   KG-UNet1/2 about 7 GB; on smaller GPUs set a smaller `batch_size` in `train_overrides` (the models then differ
   from the paper's recipe).
-- The UNet-ALS checkpoint of the chosen input representation (below), from the assets of the
-  [GitHub release](https://github.com/Link-dev/chm-tool/releases), in `weights/source/` of the repository (or in
-  `$CHM_WEIGHTS/source/`). KG-UNet1/2 start from it. The Colab notebook downloads it by itself.
+- The UNet-ALS checkpoint of the chosen input representation (below), from `weights/source/` of the
+  [Hugging Face dataset](https://huggingface.co/datasets/Link-Dev/canopy-height-data/tree/main/weights/source), in `weights/source/` of the repository (or in
+  `$CHM_WEIGHTS/source/`). KG-UNet1/2 start from it. The Colab notebooks download it by themselves.
 - A Google Earth Engine account and a Google Cloud project registered for Earth Engine (free for non-commercial
   use). Sign in once with `earthengine authenticate` (or the *Authenticate* button of the app).
 
@@ -46,12 +46,32 @@ chm-tool status my_area
 
 Every stage is resumable: run the same command again after an interruption and finished parts are kept.
 
-Google Colab (no local installation): `notebooks/chm_tool_colab.ipynb` runs the same stages in a Colab GPU
+Google Colab (no local installation): `notebooks/chm_finetune.ipynb` runs the same stages in a Colab GPU
 session (T4: the paper's batch size fits). The project folder is kept on Google Drive so a run resumes after the
 session ends; the training stack is copied to the session's disk for training; only the UNet-ALS checkpoint of
 the chosen input representation is fetched (sha256-checked); RF-SLS fits at most 500 000 pixels below 16 GB RAM.
-Mind the Drive space: 400 cells with input AE need about 20 GB (the notebook prints the estimate after planning).
-The helpers are in `canopy_height.tool.colab`; install with `pip install ".[colab]"` (no Streamlit).
+Mind the Drive space: 400 cells with input AE need about 20 GB, the notebook's default of 200 about 10 GB (it
+prints the estimate after planning). The helpers are in `canopy_height.tool.colab`; install with
+`pip install ".[colab]"` (no Streamlit).
+
+## Mapping with the paper's models (no training)
+
+`notebooks/chm_pretrained.ipynb` (module `canopy_height.tool.pretrained`) maps a study area with the published
+models where they were trained, without GEDI labels or training:
+
+| Region | Models | Inputs of |
+|---|---|---|
+| CONUS: the 48 contiguous states and DC (TIGER/2018/States on Earth Engine) | UNet-ALS | 2020 |
+| EBR, MRF, MUR, SER, SPC: the site's training region (its 2.56 km training cells) | UNet-SLS, KG-UNet1, KG-UNet2 of the site | 2019 (EBR, MUR, SPC), 2020 (MRF, SER) |
+
+Only the study-area cells are downloaded (input AE, no GEDI), at most 200 cells; pixels outside the region stay
+empty, and another year than the models' prints a note. From Python:
+
+```python
+from canopy_height.tool import pretrained
+p = pretrained.create("projects/danum", "SER", pretrained.default_aoi("SER"), gee_project="my-ee-project")
+pretrained.run(p)                # maps/UNet-SLS.tif, maps/KG-UNet1.tif, maps/KG-UNet2.tif
+```
 
 ## What the tool does
 

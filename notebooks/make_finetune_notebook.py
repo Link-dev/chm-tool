@@ -1,4 +1,4 @@
-"""Writes chm_tool_colab.ipynb next to this file (edit the cells here, not in the notebook): python make_colab_notebook.py"""
+"""Writes chm_finetune.ipynb next to this file (edit the cells here, not in the notebook): python make_finetune_notebook.py"""
 import json
 from pathlib import Path
 
@@ -15,39 +15,37 @@ def code(text):
 
 
 md(r"""
-# Canopy height for your study area (chm-tool)
+# Train canopy-height models for your study area (chm-tool)
 
-10 m canopy-height maps for a study area you choose, with the models of *Leveraging cross-sensor LiDAR
-observations and Earth embeddings for canopy height prediction*. The notebook downloads the inputs and GEDI labels
-from Google Earth Engine, trains four local models (RF-SLS, UNet-SLS, KG-UNet1, KG-UNet2) and shows their maps next
-to GMTCH, GFCH and HRCH. Documentation: [github.com/Link-dev/chm-tool](https://github.com/Link-dev/chm-tool).
+Trains the models of *Leveraging cross-sensor LiDAR observations and Earth embeddings for canopy height
+prediction* for a study area anywhere: the notebook downloads the inputs and GEDI labels of a training region
+around it from Google Earth Engine, trains four local models (RF-SLS, UNet-SLS, KG-UNet1, KG-UNet2) and shows their
+10 m maps next to GMTCH, GFCH and HRCH. Documentation: [github.com/Link-dev/chm-tool](https://github.com/Link-dev/chm-tool).
+
+Inside the contiguous US or the training regions of the paper's five international sites, the published models
+map a study area in minutes without training: [chm_pretrained.ipynb](https://colab.research.google.com/github/Link-dev/chm-tool/blob/main/notebooks/chm_pretrained.ipynb).
 
 **You need**
 - a Google Cloud project registered for Earth Engine
   ([free for non-commercial use](https://code.earthengine.google.com/register));
 - a T4 GPU runtime for the UNets (*Runtime > Change runtime type*). Without a GPU, cell 7 stops after the steps
   that need none (download, training data, RF-SLS): switch to a GPU runtime and run the notebook again;
-- space on Google Drive, where the project is kept: about 20 GB for the default 400 cells with input AE (cell 5
-  prints the estimate for your area).
+- space on Google Drive, where the project is kept: about 10 GB for the default 200 training cells (cell 5 prints
+  the estimate for your area).
 
 Set everything in cell 1 and run the cells in order. If the session ends, run them again: finished parts are kept.
-
-| Input | Layers |
-|---|---|
-| **AE** (default) | Earth embedding + annual Sentinel-1/2 + DEM |
-| **A** | annual Sentinel-1/2 + DEM |
-| **E** | Earth embedding |
-| **T** | four-season Sentinel-1/2 + DEM |
-| **TE** | Earth embedding + four-season Sentinel-1/2 + DEM |
+The models read the Earth embedding with the annual Sentinel-1/2 composites and the DEM (input AE); other inputs
+can be chosen in the advanced settings.
 """)
 
 code(r"""
 #@title 1. Settings
 PROJECT_NAME = "my_area"            #@param {type:"string"}
 GEE_PROJECT = ""                    #@param {type:"string"}
-INPUT = "AE: Earth embedding + annual Sentinel-1/2 + DEM"  #@param ["AE: Earth embedding + annual Sentinel-1/2 + DEM", "A: annual Sentinel-1/2 + DEM", "E: Earth embedding", "T: four-season Sentinel-1/2 + DEM", "TE: Earth embedding + four-season Sentinel-1/2 + DEM"]
 YEAR = 2020                         #@param {type:"integer"}
-TRAIN_CELLS = 400                   #@param {type:"integer"}
+#@markdown Training region: the study area and the surrounding cells of 2.56 km up to this many cells (the paper
+#@markdown used about 400; fewer download and train faster).
+TRAIN_CELLS = 200                   #@param {type:"integer"}
 #@markdown Study area: a longitude / latitude box, a shape drawn on a map (cell 4), a file on Google Drive, or an
 #@markdown uploaded file (zipped shapefile, GeoJSON, GeoPackage, KML).
 AOI_MODE = "box"                    #@param ["box", "draw", "drive file", "upload"]
@@ -56,14 +54,16 @@ SOUTH = -41.29                      #@param {type:"number"}
 EAST = 173.53                       #@param {type:"number"}
 NORTH = -41.22                      #@param {type:"number"}
 AOI_FILE = "/content/drive/MyDrive/chm-tool/study_area.geojson"                #@param {type:"string"}
-#@markdown **Advanced** (the defaults are fine): parallel Earth Engine requests, Sentinel-1 processing ("local" uses
-#@markdown far less Earth Engine quota), the last stage to run, and where the project, code and weights are.
+#@markdown **Advanced** (the defaults are fine): the input of the models, parallel Earth Engine requests, Sentinel-1
+#@markdown processing ("local" uses far less Earth Engine quota), the last stage to run, and where the project,
+#@markdown code and weights are.
+INPUT = "AE: Earth embedding + annual Sentinel-1/2 + DEM"  #@param ["AE: Earth embedding + annual Sentinel-1/2 + DEM", "A: annual Sentinel-1/2 + DEM", "E: Earth embedding", "T: four-season Sentinel-1/2 + DEM", "TE: Earth embedding + four-season Sentinel-1/2 + DEM"]
 WORKERS = 3                         #@param {type:"integer"}
 S1_METHOD = "local"                 #@param ["local", "gee"]
 RUN_TO = "report"                   #@param ["plan", "download", "stack", "train", "predict", "report"]
 DRIVE_DIR = "/content/drive/MyDrive/chm-tool"                                  #@param {type:"string"}
 CODE_SOURCE = "git+https://github.com/Link-dev/chm-tool@main"                  #@param {type:"string"}
-WEIGHTS_SOURCE = "https://github.com/Link-dev/chm-tool/releases/download/v1.0.0"  #@param {type:"string"}
+WEIGHTS_SOURCE = "https://huggingface.co/datasets/Link-Dev/canopy-height-data/resolve/main/weights"  #@param {type:"string"}
 
 INPUT_LABEL = INPUT
 INPUT = INPUT.split(":")[0].strip()          # the code before the colon: AE, A, E, T or TE
@@ -213,6 +213,6 @@ nb = dict(nbformat=4, nbformat_minor=5, cells=CELLS,
 for i, c in enumerate(nb["cells"]):
     c["id"] = f"cell{i:02d}"
     c["source"] = c["source"].splitlines(keepends=True)
-out = Path(__file__).with_name("chm_tool_colab.ipynb")
+out = Path(__file__).with_name("chm_finetune.ipynb")
 out.write_text(json.dumps(nb, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
 print(out)

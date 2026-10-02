@@ -29,6 +29,7 @@ from pathlib import Path
 import yaml
 
 from ..channels import ALIASES, _Inputs, canonical as _canonical  # noqa: F401  (ALIASES re-exported)
+from .weights import WEIGHTS_URL  # noqa: F401  (the published weights; UNet-ALS in <WEIGHTS_URL>/source/)
 
 STAGES = ["plan", "download", "stack", "train", "predict", "report"]
 MODELS = ["rf-sls", "unet-sls", "kg-unet1", "kg-unet2"]
@@ -113,13 +114,11 @@ PART = 400                          # chips per stack part file
 CELL_PX = 256                       # cell / chip size (pixels)
 RES = 10.0                          # grid resolution (m)
 CELL_M = CELL_PX * RES              # 2560 m
-# the UNet-ALS checkpoints are assets of this GitHub release (<WEIGHTS_URL>/<file>)
-WEIGHTS_URL = "https://github.com/Link-dev/chm-tool/releases/download/v1.0.0"
 
 
 def default_base_model(inp="AE"):
     """UNet-ALS checkpoint of a representation: $CHM_WEIGHTS/source/<file> or weights/source/<file> of the
-    repository (downloaded from WEIGHTS_URL; $CHM_UNET_ALS overrides the AE checkpoint)."""
+    repository (downloaded from WEIGHTS_URL/source; $CHM_UNET_ALS overrides the AE checkpoint)."""
     inp = canonical_input(inp)
     name = INPUTS[inp]["checkpoint"]
     if inp == "AE" and os.environ.get("CHM_UNET_ALS"):
@@ -234,7 +233,7 @@ class Project:
         if p is None or not Path(p).exists():
             raise FileNotFoundError(f"UNet-ALS checkpoint for input {self.cfg['input']} "
                                     f"({INPUTS[self.cfg['input']]['checkpoint']}) not found: download it from "
-                                    f"{WEIGHTS_URL}/{INPUTS[self.cfg['input']]['checkpoint']} into weights/source/ "
+                                    f"{WEIGHTS_URL}/source/{INPUTS[self.cfg['input']]['checkpoint']} into weights/source/ "
                                     f"of the repository, or set $CHM_WEIGHTS or base_model in project.yaml")
         return Path(p)
 

@@ -20,7 +20,7 @@ Documentation = "https://github.com/Link-dev/chm-tool/blob/main/docs/tool.md"
 # the study-area tool (Earth Engine download, planning, report, Streamlit interface)
 tool = ["pandas", "geopandas", "pyogrio", "shapely>=2", "pyproj", "scipy", "earthengine-api", "requests", "matplotlib",
         "streamlit>=1.37", "folium", "streamlit-folium", "psutil", "tqdm"]
-# the Google Colab notebook (notebooks/chm_tool_colab.ipynb): the tool without Streamlit, plus the drawing map
+# the Google Colab notebooks (notebooks/chm_*.ipynb): the tool without Streamlit, plus the drawing map
 colab = ["pandas", "geopandas", "pyogrio", "shapely>=2", "pyproj", "scipy", "earthengine-api", "requests", "matplotlib",
          "folium", "psutil", "ipyleaflet", "tqdm"]
 
@@ -32,4 +32,4 @@ chm-tool = "canopy_height.tool.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-canopy_height = ["data/*.npz", "tool/gee/third_party/gee_s1_ard/LICENSE"]
+canopy_height = ["data/*.npz", "data/*.geojson", "tool/gee/third_party/gee_s1_ard/LICENSE"]

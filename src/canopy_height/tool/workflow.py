@@ -555,6 +555,11 @@ STAGE_FUNCTIONS = {"plan": plan, "download": download, "stack": stack, "train": 
                    "report": report}
 
 
+STAGE_TITLES = {"plan": "planning the cells", "download": "downloading the inputs and GEDI labels",
+                "stack": "building the training data", "train": "training the models",
+                "predict": "mapping canopy height", "report": "writing the report"}
+
+
 def run(project, from_stage="plan", to_stage="report", workers=None):
     """Run the stages from_stage .. to_stage in order; stops at the first failing stage (exception raised)."""
     project = _as_project(project)
@@ -568,6 +573,7 @@ def run(project, from_stage="plan", to_stage="report", workers=None):
         project.log(f"run: {' -> '.join(STAGES[i:j + 1])} (pid {os.getpid()}, input {project['input']})")
         t0 = time.time()
         for s in STAGES[i:j + 1]:
+            project.log(f"== Step {STAGES.index(s) + 1}/{len(STAGES)}: {STAGE_TITLES[s]} ==")
             if s == "download":
                 download(project, workers=workers)
             else:

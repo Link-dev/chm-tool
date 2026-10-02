@@ -199,7 +199,7 @@ data of the same period. ALS rasters (tab 2) give an independent accuracy.
 - **Disk**: tens of MB per cell for the downloads (the seasonal composites add about 16 MB) plus about 10 MB per
   cell for the training stack (16 MB with the seasonal composites), several GB for the default 400 cells.
 - **UNet-ALS checkpoint** of the chosen representation in `weights/source/` of the repository (or
-  `$CHM_WEIGHTS/source/`), downloaded from {WEIGHTS_URL}/: KG-UNet1/2 start from it.
+  `$CHM_WEIGHTS/source/`), downloaded from {WEIGHTS_URL}/source/: KG-UNet1/2 start from it.
 - **GPU**: an NVIDIA GPU with CUDA for the three UNets (a CPU works, but slowly); RF-SLS uses the CPU.
 
 ### Expected run times (rough, 400 training cells, one recent GPU)
@@ -962,7 +962,7 @@ def _input_picker(p):
         name = f"{base}" if base else INPUTS[inp]["checkpoint"]
         st.warning(f"The UNet-ALS checkpoint of input {inp} ({name}) is not found"
                    + (f" (looked for {ck})" if ck is not None and not base else "")
-                   + f": KG-UNet1/2 start from it. Download it from {WEIGHTS_URL}/ into weights/source/ of the "
+                   + f": KG-UNet1/2 start from it. Download it from {WEIGHTS_URL}/source/ into weights/source/ of the "
                    "repository (or set $CHM_WEIGHTS to a folder with source/), or choose another representation. "
                    + ("The settings cannot be saved with this representation." if p is not None else
                       "A project cannot be created with this representation."))
