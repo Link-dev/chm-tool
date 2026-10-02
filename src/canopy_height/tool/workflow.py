@@ -86,7 +86,7 @@ def torch_device(project):
 def read_cells(project):
     """plan/cells.csv as a list of dicts (use parsed to bool)."""
     if not project.cells_file.exists():
-        raise FileNotFoundError(f"{project.cells_file} missing: run the plan stage (or import-cells) first")
+        raise FileNotFoundError(f"{project.cells_file} missing: run the plan stage first")
     with open(project.cells_file, newline="", encoding="utf-8") as fh:
         rows = list(csv.DictReader(fh))
     for r in rows:
@@ -128,17 +128,6 @@ def plan(project):
         grid.plan_cells(project)
     rows = read_cells(project)
     return rows, _cells_message(rows)
-
-
-@_stage("plan")
-def import_cells(project, rows, role_map=None, default_role="ring"):
-    """cells.csv from a table of existing 256 x 256 rasters (grid.import_cells), in place of the plan stage."""
-    from . import grid
-    grid.import_cells(project, rows, role_map={"test": "aoi"} if role_map is None else role_map,
-                      default_role=default_role)
-    cells = read_cells(project)
-    src = Path(rows).name if isinstance(rows, (str, os.PathLike)) else "table"
-    return cells, f"imported from {src}: " + _cells_message(cells)
 
 
 # ---------------------------------------------------------------------------------------------- download

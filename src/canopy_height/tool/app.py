@@ -1085,11 +1085,6 @@ def _settings_form(p):
     st.rerun()
 
 
-def plan_imported(cells):
-    """cells.csv comes from import-cells (cells with their own raster folders)."""
-    return cells is not None and "src_dir" in cells and cells["src_dir"].notna().any()
-
-
 def delete_plan(p):
     """Remove plan/grid.json and plan/cells.csv, so the Plan stage lays out the cells again; downloads, stack,
     models and maps stay, and so does plan/landcover.csv (a cache of WorldCover look-ups by cell name, so no water
@@ -1112,11 +1107,6 @@ def _replan(p):
         st.warning("The training-region settings changed after the cells were planned: plan/cells.csv still holds "
                    "the old training region. Plan the cells again for the new settings to take effect.")
     with st.expander("Plan the cells again", expanded=changed):
-        cells, _ = _cells(p)
-        if plan_imported(cells):
-            st.caption("The cells of this project were imported (import-cells): import them again from the command "
-                       "line instead.")
-            return
         st.markdown("Deletes plan/grid.json and plan/cells.csv; nothing else. Downloads (raw/) are kept, so the "
                     "cells of the new plan that are already downloaded are not fetched again, and plan/landcover.csv "
                     "keeps the WorldCover shares already looked up. Then run *Plan* (or *Run all*) in tab 3: the "

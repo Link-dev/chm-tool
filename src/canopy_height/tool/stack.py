@@ -15,8 +15,8 @@ does not use are not read (not downloaded) and their channels of X are 0 (= no d
 seasonal layers (project.SEASONAL_LAYERS) are stacked when it needs them. With the default AE every layer is used
 and the stacks are those of the paper.
 
-Chips are stacked in cells.csv order, because that order defines the training / validation split: imported cells
-keep the order of their table. stacks/hashes.json (written last) records
+Chips are stacked in cells.csv order, because that order defines the training / validation split.
+stacks/hashes.json (written last) records
 the data hashes, cells.csv, the settings the rasters depend on (and the input representation) and the size / mtime
 of every input raster; the stack is rebuilt when any of them changes. `stack_id` identifies a complete stack,
 `model_is_current` tells whether a model was trained on it.
@@ -113,7 +113,7 @@ def read_cells(project):
     """plan/cells.csv in file (= stack) order, `use` as bool."""
     f = project.cells_file
     if not f.exists():
-        raise FileNotFoundError(f"{f} missing: run the plan stage (or import-cells) first")
+        raise FileNotFoundError(f"{f} missing: run the plan stage first")
     df = pd.read_csv(f)
     truthy = ("true", "1", "1.0", "yes")
     df["use"] = df["use"].map(lambda v: str(v).strip().lower() in truthy) if "use" in df else True
@@ -123,25 +123,16 @@ def read_cells(project):
 
 
 def read_grid(project):
-    """plan/grid.json as a dict, None if the project has no common grid (no file, or imported cells written with
-    "cells_on_common_grid": false / no origin)."""
+    """plan/grid.json as a dict, None before the plan stage."""
     f = project.grid_file
     if not f.exists():
         return None
     g = json.load(open(f, encoding="utf-8"))
-    if not g.get("cells_on_common_grid", True) or any(g.get(k) is None for k in ("epsg", "x0", "y1")):
-        return None
     return g
 
 
-def _valid(v):
-    return v is not None and not (isinstance(v, float) and v != v)
-
-
 def _epsg_of(row, grid):
-    """Expected EPSG of a cell: its own column (imported cells), else the grid's, else unknown (None)."""
-    if _valid(row.get("epsg")):
-        return int(row["epsg"])
+    """Expected EPSG of a cell: the grid's, else unknown (None)."""
     return int(grid["epsg"]) if grid else None
 
 
@@ -495,9 +486,7 @@ def build_train_stack(project, overwrite=False):
 
 # ------------------------------------------------------------------------------------------------ mosaics
 def _grid_pos(grid, row):
-    """(row, col) of a cell on the grid, None if it is off the grid or in another CRS."""
-    if _valid(row.get("epsg")) and int(row["epsg"]) != int(grid["epsg"]):
-        return None
+    """(row, col) of a cell on the grid, None if it is off the grid."""
     c = (float(row["x0"]) - float(grid["x0"])) / CELL_M
     r = (float(grid["y1"]) - float(row["y1"])) / CELL_M
     ic, ir = round(c), round(r)
@@ -619,7 +608,7 @@ def build_mosaics(project):
     paths."""
     lay = mosaic_layout(project)
     if lay is None:
-        project.log("mosaic: no plan/grid.json with study-area cells (imported cells?): no study-area mosaics")
+        project.log("mosaic: no plan/grid.json with study-area cells: no study-area mosaics")
         return []
     nr, nc, cells, epsg = lay["n_rows"], lay["n_cols"], lay["cells"], lay["epsg"]
     need, seasonal, tags = input_layers(project["input"]), project.seasonal, dict(input=project["input"])
@@ -639,8 +628,8 @@ def build_mosaics(project):
         if n_in == 0:
             mask_tmp.unlink(missing_ok=True)
             raise ValueError(f"{project.aoi_file.name} covers no 10 m pixel centre of the {n_aoi} study-area cells "
-                             f"(a study area narrower than a 10 m pixel, or one that does not overlap imported "
-                             f"study-area cells): every map would be empty")
+                             f"(a study area narrower than a 10 m pixel): every map "
+                             f"would be empty")
     else:
         project.log(f"mosaic: {project.aoi_file} missing, aoi_mask.tif not written")
 

@@ -1,7 +1,7 @@
 """Project folder of the canopy-height tool: settings (project.yaml), file layout, stage status and logging.
 
-A project is one folder. Every stage reads and writes only inside it (imported cells may point to rasters
-elsewhere, see `cell_raster`), so a run can be stopped and resumed at any time:
+A project is one folder. Every stage reads and writes only inside it, so a run can be stopped and resumed at
+any time:
 
     project.yaml                 settings (DEFAULTS below, overridden by the user)
     aoi.geojson                  study area as given (dissolved, EPSG:4326)
@@ -204,19 +204,8 @@ class Project:
         return self.path("raw", f"{cell}_{layer}.tif")
 
     def cell_raster(self, cell_row, layer):
-        """Raster of a layer of a cell: the cell's own folder (imported cells: column src_dir, and lab_dir for
-        GEDI) or raw/; a layer an imported cell lacks is looked for in raw/ (where the download stage puts it).
-        Returns a Path (which may not exist yet)."""
-        d = None
-        if layer == LABEL_LAYER or layer.startswith("GEDI"):
-            d = _col(cell_row, "lab_dir")
-        d = d or _col(cell_row, "src_dir")
-        raw = self.raw(cell_row["cell"], layer)
-        if d:
-            p = Path(d) / f"{cell_row['cell']}_{layer}.tif"
-            if p.exists() or not raw.exists():
-                return p
-        return raw
+        """Raster of a layer of a cell (raw/<cell>_<layer>.tif; a Path that may not exist yet)."""
+        return self.raw(cell_row["cell"], layer)
 
     def stack_files(self, key="x"):
         """Existing parts of the training stack, in order (key 'x' = inputs, 'GEDI' = labels)."""
@@ -296,7 +285,9 @@ class Project:
                 lg.setLevel(logging.INFO)
                 lg.propagate = False
                 fmt = logging.Formatter("%(asctime)s %(message)s", "%Y-%m-%d %H:%M:%S")
-                for h in (logging.FileHandler(self.log_file, encoding="utf-8"), logging.StreamHandler(sys.stdout)):
+                screen = logging.StreamHandler(sys.stdout)
+                screen.addFilter(lambda record: getattr(record, "screen", True))   # log(..., screen=False): file only
+                for h in (logging.FileHandler(self.log_file, encoding="utf-8"), screen):
                     h.setFormatter(fmt)
                     lg.addHandler(h)
             self._log = lg
@@ -310,8 +301,9 @@ class Project:
             lg.removeHandler(h)
         self._log = None
 
-    def log(self, msg):
-        self.logger().info(msg)
+    def log(self, msg, screen=True):
+        """Write msg to logs/run.log and, unless screen is False, to the screen."""
+        self.logger().info(msg, extra={"screen": screen})
 
 
 YEARS = (2019, 2024)   # Sentinel-2 L2A is global from Dec 2018, GEDI from Apr 2019; the paper used 2019 / 2020
@@ -415,15 +407,3 @@ class run_lock:
             except OSError:
                 pass
         return False
-
-
-def _col(row, k):
-    v = row.get(k) if hasattr(row, "get") else None
-    if v is None:
-        return None
-    try:
-        if v != v:           # NaN from pandas
-            return None
-    except TypeError:
-        pass
-    return str(v) if str(v).strip() else None

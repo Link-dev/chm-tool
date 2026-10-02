@@ -1,10 +1,9 @@
 """Canopy-height tool: download stage without Earth Engine (download.export and gee.io.ee_init are stubbed).
 
 Covers the request / EECU estimate, the settings check of existing downloads (year, GEDI window, built-up mask),
-imported cells whose folder lacks a layer (downloaded into raw/ and found there), Ctrl+C cancelling the queued
-jobs, and the input representations: only the layers of project['input'] are downloaded; the seasonal layers
-S1_asc_k / S2_k (T, TE) in the format of make_outside_seasonal, with one S1 metadata request per cell shared by its
-four S1 jobs (download.export with gee.layers / gee.io.download_grid stubbed).
+Ctrl+C cancelling the queued jobs, and the input representations: only the layers of project['input'] are
+downloaded; the seasonal layers S1_asc_k / S2_k (T, TE) in the paper's format, with one S1 metadata request per
+cell shared by its four S1 jobs (download.export with gee.layers / gee.io.download_grid stubbed).
 """
 import csv
 import datetime as dt
@@ -122,21 +121,16 @@ def test_estimate_counts_http_calls_and_eecu_range(tmp_path):
 
 # ---------------------------------------------------------------------------------------------- settings check
 def test_changed_settings_stop_the_download(tmp_path, stub):
-    imp = tmp_path / "pipeline_inputs"
-    for l in ("Embedding", "DEM", "S1", "S2", "GEDI"):                 # pipeline raster: other year, no GEDI tags
-        _write_layer(imp / f"imp0_{l}.tif", l, X0 + 2560, dict(year="2019", source=l))
-    p = _project(tmp_path / "p", [("c0", 0, "ring", {}), ("imp0", 1, "ring", dict(src_dir=str(imp), lab_dir=str(imp),
-                                                                                   epsg=EPSG))],
-                 benchmarks=[])
+    p = _project(tmp_path / "p", [("c0", 0, "ring", {})], benchmarks=[])
     res = download.run_download(p)
-    assert res["jobs"] == 4 and res["failed"] == [] and len(stub.calls) == 4        # c0 only
+    assert res["jobs"] == 4 and res["failed"] == [] and len(stub.calls) == 4
     assert download.run_download(p)["jobs"] == 0
 
     p = _set(p, year=2021)
     with pytest.raises(download.SettingsChanged) as e:
         download.run_download(p, layers=["HRCH"])                    # every layer is checked, not only `layers`
     msg = str(e.value)
-    assert "3 downloaded rasters" in msg and "c0" in msg and "imp0" not in msg
+    assert "3 downloaded rasters" in msg and "c0" in msg
     assert "S1: year 2020 (project: 2021)" in msg and "Start a new project" in msg and "raw/<cell>_S2.tif" in msg
     assert "DEM" not in msg and "GEDI" not in msg and len(stub.calls) == 4
     assert download.estimate(p)["jobs"] == 0                         # the estimate does not read tags
@@ -166,31 +160,6 @@ def test_unquoted_yaml_dates_match_the_tags(tmp_path, stub):
     assert download.run_download(p)["jobs"] == 0
 
 
-# ---------------------------------------------------------------------------------------------- imported cells
-def test_imported_cell_missing_layers_land_in_raw(tmp_path, stub, monkeypatch):
-    imp = tmp_path / "pipeline_inputs"
-    for l in ("Embedding", "DEM", "S2", "GEDI"):                     # S1 and the benchmarks are missing
-        _write_layer(imp / f"imp0_{l}.tif", l, X0, dict(year="2020", source=l))
-    p = _project(tmp_path / "p", [("imp0", 0, "aoi", dict(src_dir=str(imp), lab_dir=str(imp), epsg=EPSG))],
-                 benchmarks=["GMTCH", "HRCH"])
-    row = download.load_plan(p)[1].to_dict("records")[0]
-    assert download.jobs_for(p, row) == [["S1"], ["Tolan_1m"], ["ETH"]]
-    replaced = []
-    monkeypatch.setattr(download, "replace_retry",
-                        lambda a, b: (replaced.append(Path(b).name), download.os.replace(a, b)))
-    res = download.run_download(p)
-    assert (res["jobs"], res["gmtch"], res["failed"]) == (3, 1, [])
-    assert {"imp0_S1.tif", "imp0_ETH.tif", "imp0_Tolan_1m.tif", "imp0_GMTCH.tif"} <= set(replaced)
-    for l in ("S1", "ETH", "Tolan_1m", "GMTCH"):
-        assert p.cell_raster(row, l) == p.raw("imp0", l) and p.raw("imp0", l).exists()
-    assert p.cell_raster(row, "S2") == imp / "imp0_S2.tif"
-    again = download.run_download(p)
-    assert (again["jobs"], again["gmtch"]) == (0, 0) and len(stub.calls) == 3
-    with rasterio.open(p.raw("imp0", "GMTCH")) as s:
-        g = s.read(1)
-    assert np.isclose(g[0, 0], 20) and np.isnan(g[-1, -1])
-
-
 # ---------------------------------------------------------------------------------------------- Ctrl+C
 def test_ctrl_c_cancels_queued_jobs(tmp_path, monkeypatch):
     p = _project(tmp_path / "p", [(f"c{i}", i, "ring", {}) for i in range(10)], benchmarks=[])
@@ -211,9 +180,9 @@ def test_ctrl_c_cancels_queued_jobs(tmp_path, monkeypatch):
     monkeypatch.setattr(gee_io, "ee_init", lambda *a, **k: None)
     log, lines, hit = p.log, [], []
 
-    def interrupting_log(msg):
+    def interrupting_log(msg, **kw):
         lines.append(msg)
-        log(msg)
+        log(msg, **kw)
         if msg.startswith("download [1/") and not hit:
             hit.append(time.time())
             raise KeyboardInterrupt

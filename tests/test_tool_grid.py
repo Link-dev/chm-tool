@@ -1,7 +1,6 @@
 """Study area reading and cell planning of the canopy-height tool (no Earth Engine: land cover is stubbed)."""
 import json
 import zipfile
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -259,45 +258,3 @@ def test_read_non_utf8_attributes(tmp_path, monkeypatch):
     gpd.GeoDataFrame({"name": ["研究区"]}, geometry=[REF_UTM], crs=32650).to_file(d / "a.shp", encoding="gbk")
     (d / "a.cpg").write_text("UTF-8")                                  # wrong code page
     assert_ref_xy(grid.read_aoi(d / "a.shp"))
-
-
-# ------------------------------------------------------------------------------------------------ import_cells
-def rows_table(n=3, **cols):
-    t = pd.DataFrame({"part": 1, "row_in_part": range(n), "piece": [f"P{i}" for i in range(n)], "tile": 1,
-                      "kind": ["test", "near", "far"][:n], "cluster": "X", "min_dist_m": [0.0, 10.0, 1500.0][:n],
-                      "epsg": 32650, "tile_x0": [584670.0, 587230.0, 582110.0][:n],
-                      "tile_y1": [550110.0, 547550.0, 552670.0][:n], "padded": False,
-                      "x_src": r"D:\x", "lab_src": r"D:\lab"})
-    for k, v in cols.items():
-        t[k] = v
-    return t
-
-
-def test_import_cells_table(tmp_path):
-    p = project(tmp_path)
-    df = grid.import_cells(p, rows_table())
-    assert list(df.columns) == grid.CELL_COLS + grid.IMPORT_COLS
-    assert list(df.cell) == ["P0", "P1", "P2"] and list(df.role) == ["aoi", "ring", "ring"]
-    assert list(df.dist_m) == [0, 10, 1500] and df.use.all() and df.water.isna().all() and df.col.isna().all()
-    g = json.load(open(p.grid_file))
-    assert g == {"epsg": 32650, "x0": 582110.0, "y1": 552670.0, "res": 10.0, "cell_px": 256,
-                 "cells_on_common_grid": True}
-    back = pd.read_csv(p.cells_file).iloc[1]
-    assert p.cell_raster(back, "S2") == Path(r"D:\x") / "P1_S2.tif"
-    assert p.cell_raster(back, "GEDI") == Path(r"D:\lab") / "P1_GEDI.tif"
-    grid.import_cells(p, rows_table(tile_x0=[584670.0, 587230.0, 582120.0]))
-    assert json.load(open(p.grid_file))["cells_on_common_grid"] is False
-    grid.import_cells(p, rows_table(epsg=[32650, 32650, 32651]))
-    assert json.load(open(p.grid_file))["epsg"] is None
-    with pytest.raises(ValueError, match="not whole"):
-        grid.import_cells(p, rows_table(padded=[False, True, False]))
-    with pytest.raises(ValueError, match="not whole"):
-        grid.import_cells(p, rows_table(tile=[1, 2, 1]))
-
-    # the study area must cover a pixel of the imported study-area cells (their maps)
-    far = Project.create(tmp_path / "far", shapely.box(10.0, 50.0, 10.01, 50.01))
-    with pytest.raises(ValueError, match="covers no pixel of the 1 imported study-area cells"):
-        grid.import_cells(far, rows_table())
-    assert not far.cells_file.exists() and not far.grid_file.exists()
-    assert len(grid.import_cells(far, rows_table(kind=["near", "near", "far"]))) == 3     # no study-area cells
-    assert len(grid.import_cells(far, rows_table(tile_x0=[584670.0, 587230.0, 582120.0]))) == 3   # no common grid

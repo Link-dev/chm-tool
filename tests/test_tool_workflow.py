@@ -62,7 +62,7 @@ def _cell(col, row, seed):
 
 
 def _encode_x(c):
-    """76-band uint16 input as the paper's pipeline encodes it (common.encode_x)."""
+    """76-band uint16 input as the paper encodes it."""
     x = np.concatenate([(c["Embedding"] + 1) * 1e4, c["DEM"], (c["S1"] + 50) * 100, c["S2"]])
     return np.clip(np.nan_to_num(x, nan=0.0), 0, 65535).astype(np.uint16)
 
@@ -230,8 +230,8 @@ def test_status_failure_cli_and_empty_report(tmp_path, capsys):
     assert r.returncode == 0 and "report" in r.stdout and "done" in r.stdout
 
 
-def test_download_stage_and_import_cells(tmp_path, monkeypatch):
-    """Download stage with a stubbed download.run_download (no Earth Engine); import-cells via the CLI."""
+def test_download_stage(tmp_path, monkeypatch):
+    """Download stage with a stubbed download.run_download (no Earth Engine)."""
     dl = pytest.importorskip("canopy_height.tool.download")
     p = _project(tmp_path / "proj")
     try:
@@ -252,25 +252,6 @@ def test_download_stage_and_import_cells(tmp_path, monkeypatch):
         assert st["state"] == "done" and st["message"] == "6 cells, 0 downloads, 0 GMTCH derived"
     finally:
         _release(p.root)
-
-    # import-cells: two existing pieces, the pipeline's rows table layout
-    pytest.importorskip("canopy_height.tool.grid")
-    q = _project(tmp_path / "imported")
-    q.cells_file.unlink()
-    rows = tmp_path / "rows.csv"
-    with open(rows, "w", newline="") as fh:
-        w = csv.writer(fh)
-        w.writerow(["piece", "tile", "kind", "min_dist_m", "epsg", "tile_x0", "tile_y1", "padded", "x_src", "lab_src"])
-        w.writerow(["Px584670y550110_2020", 1, "test", 0, EPSG, X0, Y1, False, tmp_path, tmp_path])
-        w.writerow(["Px587230y550110_2020", 1, "near", 10, EPSG, X0 + 2560, Y1, False, tmp_path, tmp_path])
-    try:
-        assert cli.main(["import-cells", str(q.root), "--rows", str(rows)]) == 0
-        cells = workflow.read_cells(q)
-        assert [c["role"] for c in cells] == ["aoi", "ring"] and cells[0]["cell"] == "Px584670y550110_2020"
-        st = q.status()["plan"]
-        assert st["state"] == "done" and st["message"] == "imported from rows.csv: 1 study-area cells, 1 surrounding cells"
-    finally:
-        _release(q.root)
 
     # init: settings from the command line, paper defaults otherwise
     new = tmp_path / "new"

@@ -5,8 +5,7 @@
     chm-tool status DIR                                                  state of every stage
     chm-tool app [DIR] [--port 8501]                                     the Streamlit interface
 
-Single stages: plan | download | stack | train | predict | report DIR. `import-cells DIR --rows CSV` replaces
-the plan stage by a table of existing 256 x 256 rasters.
+Single stages: plan | download | stack | train | predict | report DIR.
 Settings not given to `init` keep the paper's defaults (project.DEFAULTS); edit DIR/project.yaml to change them.
 """
 import argparse
@@ -62,21 +61,6 @@ def cmd_status(a):
         print(f"{s:9} {r.get('state', 'pending'):8} {r.get('started', '') or '':19}  {r.get('finished', '') or '':19}  "
               f"{'' if sec is None else sec:>8}  {r.get('message', '') or ''}")
     print(f"log: {p.log_file}")
-
-
-def cmd_import_cells(a):
-    from . import workflow
-    role_map = {}
-    for kv in a.role_map:
-        k, sep, v = kv.partition("=")
-        if not sep or v not in ("aoi", "ring"):
-            raise ValueError(f"--role-map expects KIND=aoi or KIND=ring, got {kv!r}")
-        role_map[k] = v
-    p = Project(a.dir)
-    try:
-        workflow.import_cells(p, a.rows, role_map=role_map, default_role=a.default_role)
-    finally:
-        p.close_log()
 
 
 def cmd_app(a):
@@ -136,13 +120,6 @@ def build_parser():
     p = sub.add_parser("status", help="state of every stage")
     p.add_argument("dir")
     p.set_defaults(func=cmd_status)
-
-    p = sub.add_parser("import-cells", help="use existing 256 x 256 rasters as the cells (replaces plan)")
-    p.add_argument("dir")
-    p.add_argument("--rows", required=True, help="CSV table of the rasters")
-    p.add_argument("--role-map", nargs="+", default=["test=aoi"], help="KIND=ROLE pairs (default test=aoi)")
-    p.add_argument("--default-role", choices=["aoi", "ring"], default="ring")
-    p.set_defaults(func=cmd_import_cells)
 
     p = sub.add_parser("app", help="start the Streamlit interface")
     p.add_argument("dir", nargs="?", help="project folder to open (optional)")

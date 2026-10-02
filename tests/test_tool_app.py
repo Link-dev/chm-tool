@@ -21,7 +21,7 @@ from canopy_height.tool import viz  # noqa: E402
 from canopy_height.tool.project import INPUTS, Project  # noqa: E402
 
 APP = Path(viz.__file__).with_name("app.py")
-EPSG, X0, Y1 = 32650, 584670.0, 550110.0          # grid anchor of a pipeline cell set
+EPSG, X0, Y1 = 32650, 584670.0, 550110.0          # grid anchor
 PNG = b"\x89PNG\r\n\x1a\n"
 
 

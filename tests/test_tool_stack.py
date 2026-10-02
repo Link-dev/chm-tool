@@ -139,20 +139,14 @@ def test_encodings():
 # ------------------------------------------------------------------------------------------------ training stack
 def test_build_train_stack(tmp_path, monkeypatch):
     monkeypatch.setattr(stack, "PART", 2)
-    ext = tmp_path / "pipeline_inputs"
     cells = [_cell(0, 0, "aoi"), _cell(0, 1, "aoi"), _cell(1, 1, "ring", use=False, dist=0.0),
              _cell(-1, 0, "ring", dist=0.0), _cell(2, 0, "ring", dist=1000.0)]
-    cells[4].update(src_dir=str(ext / "x"), lab_dir=str(ext / "lab"), epsg=EPSG)   # an imported cell
     p = _project(tmp_path / "p", cells)
     data = {}
     for i, c in enumerate(cells):
         if not c["use"]:
             continue
-        if "src_dir" in c:
-            data[c["cell"]] = {**_fill(p, c, stack.X_LAYERS, i, c["src_dir"]),
-                               **_fill(p, c, ["GEDI"], i + 50, c["lab_dir"])}
-        else:
-            data[c["cell"]] = _fill(p, c, X5, i)
+        data[c["cell"]] = _fill(p, c, X5, i)
     ix = stack.build_train_stack(p)
     used = [c for c in cells if c["use"]]
     assert ix.cell.tolist() == [c["cell"] for c in used]
@@ -448,10 +442,6 @@ def test_mosaics_need_grid_and_aoi_cells(tmp_path):
     p = _project(tmp_path / "b", [c], grid=True)
     assert stack.build_mosaics(p) == [] and stack.als_reference(p) is None
     a = _cell(0, 0, "aoi")
-    p = _project(tmp_path / "c", [a], grid=False, als=[str(chm)], als_resolution=10)
-    json.dump(dict(epsg=EPSG, x0=None, y1=None, res=10.0, cell_px=256, cells_on_common_grid=False),
-              open(p.grid_file, "w"))                                   # grid.import_cells of scattered cells
-    assert stack.read_grid(p) is None and stack.build_mosaics(p) == [] and stack.als_reference(p) is None
     p = _project(tmp_path / "d", [a], grid=True, als=[str(tmp_path / "missing.tif")])
     with pytest.raises(FileNotFoundError):
         stack.als_reference(p)
@@ -546,7 +536,7 @@ ANNUAL_CH = {"Embedding": slice(0, 64), "DEM": slice(64, 65), "S1": slice(65, 67
 
 
 def _expected_seasonal(a):
-    """44-band seasonal chip as make_outside_seasonal.encode: S1 (dB+50)*100, S2 *10000, NaN->0, clip, truncate."""
+    """44-band seasonal chip as the paper encodes it: S1 (dB+50)*100, S2 *10000, NaN->0, clip, truncate."""
     out = []
     for k in SEASONAL:
         v = a[k].astype(np.float64)

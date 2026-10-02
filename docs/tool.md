@@ -61,7 +61,8 @@ The helpers are in `canopy_height.tool.colab`; install with `pip install ".[cola
    (default 400, as the paper's international training regions), at most `ring_max_km` (50 km) away; surrounding
    cells that are >= 95 % water (ESA WorldCover 2020) are left out. Smaller training regions train faster but
    give less reliable UNets; below about 100 cells the results should be treated as a demonstration.
-2. **Download** (Google Earth Engine, the paper's recipes unchanged):
+2. **Download** (Google Earth Engine, the paper's recipes unchanged; the screen shows a progress bar and any failed
+   file, the log `logs/run.log` lists every file):
    - Earth embedding (Google Satellite Embedding, annual), SRTM DEM;
    - Sentinel-1 VV/VH: GRD, both orbits, border-noise mask, multi-temporal Quegan speckle filter (15 x 15 boxcar,
      10 images), volume-model terrain flattening, dB, annual median;

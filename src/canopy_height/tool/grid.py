@@ -13,7 +13,6 @@ plus the ring of cells whose boundary distance to it is <= D, D the smallest who
 (study area + ring cells with < water_max WorldCover-2020 water) reach `train_cells` (~400 patches in the
 paper). Land cover is looked up only for cells that can still be selected and cached in plan/landcover.csv.
 A study area of more than `train_cells` cells is trained on all of its cells (logged with the cost).
-Existing cells can be imported instead (`import_cells`); their row order defines the training / validation split.
 """
 import json
 import locale
@@ -46,8 +45,6 @@ PAPER_CELLS = 400                                   # training cells of the pape
 STACK_BYTES_PER_CELL = (76 * 2 + 4) * CELL_PX ** 2  # uint16 inputs + float32 GEDI labels
 RF_BYTES_PER_CELL = 9.6e6                           # RF-SLS forest at the paper's GEDI density (4.2 GB / 439 cells)
 CELL_COLS = ["cell", "x0", "y1", "col", "row", "role", "dist_m", "water", "built", "tree", "use"]
-IMPORT_COLS = ["src_dir", "lab_dir", "epsg"]
-ROW_COLS = ["piece", "tile", "kind", "min_dist_m", "epsg", "tile_x0", "tile_y1", "padded", "x_src", "lab_src"]
 
 
 # ================================================================================================ study area
@@ -442,59 +439,4 @@ def plan_cells(project, landcover=None):
     if usable < target:
         msg += f"; ring_max_km {project['ring_max_km']:g} reached with fewer cells than train_cells"
     project.log(msg)
-    return out
-
-
-# ================================================================================================ import
-def import_cells(project, rows, role_map={"test": "aoi"}, default_role="ring"):
-    """cells.csv from a table of existing 256 x 256 rasters `<src_dir>/<cell>_<layer>.tif` (columns piece, tile, kind, min_dist_m, epsg, tile_x0, tile_y1,
-    padded, x_src, lab_src). Row order is kept (it defines the training split). role = role_map[kind], else
-    default_role. plan/grid.json gets the common grid of the cells, or "cells_on_common_grid": false. On a common
-    grid, the project's study area (aoi.geojson) must cover a pixel of the imported aoi cells (their maps).
-    """
-    t = rows.copy() if isinstance(rows, pd.DataFrame) else pd.read_csv(rows)
-    name = "table" if isinstance(rows, pd.DataFrame) else Path(rows).name
-    miss = [c for c in ROW_COLS if c not in t.columns]
-    if miss:
-        raise ValueError(f"{name}: missing columns {miss}")
-    t = t.reset_index(drop=True)
-    padded = t["padded"].astype(str).str.strip().str.lower().isin(["true", "1", "1.0"])
-    bad = (pd.to_numeric(t["tile"]) != 1) | padded
-    if bad.any():
-        raise ValueError(f"{name}: {int(bad.sum())} rows are not whole 256 x 256 pieces (tile != 1 or padded), "
-                         f"e.g. {t.loc[bad, 'piece'].iloc[0]} tile {t.loc[bad, 'tile'].iloc[0]}")
-    dup = t["piece"].astype(str).duplicated()
-    if dup.any():
-        raise ValueError(f"{name}: duplicated pieces, e.g. {t.loc[dup, 'piece'].iloc[0]}")
-    roles = [role_map.get(k, default_role) for k in t["kind"].astype(str)]
-    if set(roles) - {"aoi", "ring"}:
-        raise ValueError(f"roles must be 'aoi' or 'ring', got {sorted(set(roles) - {'aoi', 'ring'})}")
-    dist = pd.to_numeric(t["min_dist_m"]).round()
-    x0, y1 = t["tile_x0"].astype(float), t["tile_y1"].astype(float)
-    epsg = t["epsg"].astype(int)
-    out = pd.DataFrame({"cell": t["piece"].astype(str), "x0": x0, "y1": y1, "col": np.nan, "row": np.nan,
-                        "role": roles, "dist_m": dist.astype(int) if dist.notna().all() else dist,
-                        "water": np.nan, "built": np.nan, "tree": np.nan, "use": True,
-                        "src_dir": t["x_src"].astype(str), "lab_dir": t["lab_src"].astype(str), "epsg": epsg})
-    out = out[CELL_COLS + IMPORT_COLS]
-
-    def on_grid(d):
-        return bool(np.all(np.abs(d - np.round(d / CELL_M) * CELL_M) <= SNAP * RES))
-    one_epsg = epsg.nunique() == 1
-    common = one_epsg and on_grid(x0 - x0.min()) and on_grid(y1.max() - y1)
-    grid = {"epsg": int(epsg.iloc[0]) if one_epsg else None, "x0": float(x0.min()) if common else None,
-            "y1": float(y1.max()) if common else None, "res": RES, "cell_px": CELL_PX,
-            "cells_on_common_grid": common}
-    n_aoi = int((out.role == "aoi").sum())
-    if common and n_aoi and project.aoi_file.exists():
-        aoi_xy = to_crs(read_aoi(project.aoi_file), grid["epsg"])
-        if aoi_pixels(aoi_xy, out[out.role == "aoi"], need=1) == 0:
-            raise ValueError(f"{name}: the project's study area ({project.aoi_file.name}) covers no pixel of the "
-                             f"{n_aoi} imported study-area cells, so their maps would be empty: create the project "
-                             f"with the study area of these cells")
-    _write_json(grid, project.grid_file)
-    _write_csv(out, project.cells_file)
-    project.log(f"import-cells: {len(out)} cells from {name} ({n_aoi} aoi, {len(out) - n_aoi} ring), "
-                f"EPSG:{grid['epsg'] if one_epsg else 'mixed'}, "
-                + ("on one common grid" if common else "not on one common grid (cells_on_common_grid false)"))
     return out

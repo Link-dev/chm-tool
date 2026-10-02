@@ -8,7 +8,7 @@ project['built_up_mask']) with DEM; per study-area cell (role aoi) also the benc
 HRCH -> ETH, GFCH -> UMD, GMTCH -> Tolan_1m (1 m), then GMTCH = p90 of the 10 x 10 Tolan pixels of every 10 m cell,
 computed locally. Layers the representation does not use are not downloaded.
 
-File formats (imported cells are simply skipped): float64 with NaN for Embedding / S1 / S2 / GEDI and the seasonal
+File formats: float64 with NaN for Embedding / S1 / S2 / GEDI and the seasonal
 layers (S1_asc_k: VV, VH in dB; S2_k: B2 ... B12 as 0-1 reflectance), DEM int16, ETH / UMD uint8 (0 = no data), Tolan_1m uint8 (255 = no
 data) on the 1 m grid nested in the cell, GMTCH float32 (NaN). One job = one layer, except DEM + GEDI (one request);
 Sentinel-1 depends on project['s1_method']: 'local' (default) fetches the raw scenes of the cell (gee.s1_raw) and
@@ -41,7 +41,7 @@ CHUNK = {"Embedding": 256, "S1": 256, "S2": 512, "DEM": 1024, "ETH": 1024, "UMD"
          "Tolan_1m": 2560,                          # getDownloadURL chunk (px); split 2 x 2 on memory errors
          **{l: 512 for l in S1_SEASONAL}, **{l: 768 for l in S2_SEASONAL}}
 BUNDLE = ("DEM", LABEL_LAYER)                       # downloaded together in one request
-CHECK_EVERY = 50                                    # progress line every so many cells while checking existing files
+CHECK_EVERY = 50                                    # progress shown while checking the files of more cells than this
 FILE_LAYERS = X_LAYERS + SEASONAL_LAYERS + [LABEL_LAYER, "ETH", "UMD", "Tolan_1m", "GMTCH"]
 YEAR_LAYERS = ("Embedding", "S1", "S2", *SEASONAL_LAYERS)          # content depends on project['year']
 # rough cost of one 256 x 256 cell per job (MB on disk, Earth Engine EECU-seconds). Sentinel-1 by the Earth Engine
@@ -93,10 +93,8 @@ def load_plan(project):
 
 
 def cell_geo(row, grid):
-    """(epsg, x0, y1) of a cell: its own epsg column (imported cells) or the grid's."""
-    e = row.get("epsg")
-    epsg = int(e) if e is not None and e == e and str(e).strip() else int(grid["epsg"])
-    return epsg, float(row["x0"]), float(row["y1"])
+    """(epsg, x0, y1) of a cell."""
+    return int(grid["epsg"]), float(row["x0"]), float(row["y1"])
 
 
 def _cell_inputs(inp):
@@ -133,13 +131,12 @@ def settings_mismatch(project, row, layer):
     """Why the existing raw/ raster of a layer was downloaded with other settings than project.yaml, else None.
 
     Compares the tags written by export: year (YEAR_LAYERS) and gedi_start / gedi_end / built_up_mask (GEDI).
-    Tags that are missing or empty are accepted, and so are an imported cell's own rasters (its table defines
-    them).
+    Tags that are missing or empty are accepted.
     """
     if layer not in YEAR_LAYERS and layer != LABEL_LAYER:
         return None
-    f = project.cell_raster(row, layer)
-    if f != project.raw(row["cell"], layer) or not f.exists():
+    f = project.raw(row["cell"], layer)
+    if not f.exists():
         return None
     import rasterio
     with rasterio.open(f) as s:
@@ -448,10 +445,49 @@ def s1_regions(project, grid, jobs):
     return out
 
 
+class Progress:
+    """Progress of a loop on the screen: a tqdm bar (a widget in notebooks such as Colab, a text bar in a terminal),
+    or, without tqdm or when the output is not a terminal, a line every 5 %. The details stay in logs/run.log."""
+
+    def __init__(self, project, total, desc, unit):
+        self.project, self.total, self.desc, self.unit, self.n = project, total, desc, unit, 0
+        self.step = max(1, math.ceil(total / 20))
+        self.bar = None
+        try:
+            from tqdm.auto import tqdm
+            self.bar = tqdm(total=total, desc=desc, unit=unit, disable=None, dynamic_ncols=True)
+            if self.bar.disable:
+                self.bar = None
+        except ImportError:
+            pass
+
+    def update(self, failed=0):
+        self.n += 1
+        if self.bar is not None:
+            self.bar.update()
+            if failed:
+                self.bar.set_postfix(failed=failed, refresh=False)
+        elif self.n % self.step == 0 or self.n == self.total:
+            self.project.log(f"{self.desc}: {self.n}/{self.total} {self.unit}s"
+                             + (f" ({failed} failed)" if failed else ""))
+
+    def write(self, msg):
+        """A line that must be seen (e.g. a failed download), printed without breaking the bar."""
+        if self.bar is not None:
+            self.project.log(msg, screen=False)
+            self.bar.write(msg)
+        else:
+            self.project.log(msg)
+
+    def close(self):
+        if self.bar is not None:
+            self.bar.close()
+
+
 def run_download(project, workers=None, cells=None, layers=None):
     """Download every missing layer of the used cells (optionally only `cells` / `layers`), then derive GMTCH.
 
-    Existing rasters (raw/ or an imported cell's own folder) are skipped; raw/ rasters downloaded with other
+    Existing rasters in raw/ are skipped; raw/ rasters downloaded with other
     settings raise SettingsChanged before anything is downloaded. Ctrl+C cancels the queued jobs (the running
     ones stop at their next chunk or retry wait) and re-raises. Returns
     {'cells', 'jobs', 'ok', 'failed': [{'cell', 'layers', 'error'}], 'gmtch'}.
@@ -465,12 +501,18 @@ def run_download(project, workers=None, cells=None, layers=None):
     wanted = _wanted(layers)
     rows = P.to_dict("records")
     stale, jobs = [], []
+    check = None
     if len(rows) > CHECK_EVERY:          # opening every existing raster can take minutes on a network drive
-        project.log(f"download: checking the existing files of {len(rows)} cells ...")
-    for i, r in enumerate(rows, 1):
-        jobs += [(r, b) for b in jobs_for(project, r, wanted, stale)]
-        if i % CHECK_EVERY == 0 and i < len(rows):
-            project.log(f"download: checked {i}/{len(rows)} cells, {len(jobs)} jobs missing so far")
+        project.log(f"download: checking the existing files of {len(rows)} cells", screen=False)
+        check = Progress(project, len(rows), "checking existing files", "cell")
+    try:
+        for r in rows:
+            jobs += [(r, b) for b in jobs_for(project, r, wanted, stale)]
+            if check is not None:
+                check.update()
+    finally:
+        if check is not None:
+            check.close()
     if stale:
         raise _settings_error(stale)
     workers = int(workers or project["workers"] or 1)
@@ -500,6 +542,7 @@ def run_download(project, workers=None, cells=None, layers=None):
         ex = ThreadPoolExecutor(workers)
         futs = {ex.submit(run, r, b): (r, b) for r, b in jobs}
         pending, i = set(futs), 0
+        bar = Progress(project, len(jobs), "download", "file")
         try:
             while pending:
                 done, pending = wait(pending, timeout=1, return_when=FIRST_COMPLETED)   # timeout: Ctrl+C on Windows
@@ -511,8 +554,15 @@ def run_download(project, workers=None, cells=None, layers=None):
                     except Exception as e:  # noqa: BLE001
                         msg = f"FAILED {e!r}"[:300]
                         fails.append(dict(cell=r["cell"], layers="+".join(b), error=msg))
-                    project.log(f"download [{i}/{len(jobs)}] {r['cell']} {'+'.join(b)}: {msg}")
+                    line = f"download [{i}/{len(jobs)}] {r['cell']} {'+'.join(b)}: {msg}"
+                    if msg.startswith("FAILED"):
+                        bar.write(line)
+                    else:
+                        project.log(line, screen=False)
+                    bar.update(len(fails))
+            bar.close()
         except BaseException:
+            bar.close()
             io.CANCEL.set()
             n = sum(f.cancel() for f in futs)
             ex.shutdown(wait=False, cancel_futures=True)

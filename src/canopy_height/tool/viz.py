@@ -222,7 +222,7 @@ def cell_counts(cells):
 
 
 def cells_geojson(cells, epsg):
-    """cells.csv (DataFrame: cell, x0, y1, role, use, ...; imported cells may carry their own epsg) ->
+    """cells.csv (DataFrame: cell, x0, y1, role, use, ...) ->
     GeoJSON FeatureCollection in EPSG:4326 with properties cell, role, category, dist_m, water."""
     from rasterio.warp import transform
     feats = []
