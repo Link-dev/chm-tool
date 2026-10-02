@@ -162,8 +162,9 @@ layers, rebuilds the training stack and trains the models again.
   stopped when the validation loss has not improved for 15 epochs). Unlike the random forest it uses the spatial
   context of every pixel.
 - **KG-UNet1**: starts from UNet-ALS, the paper's UNet pre-trained on US airborne lidar (USGS 3DEP), and
-  fine-tunes its last two blocks on the local GEDI labels (50 epochs). The airborne-lidar knowledge guides the
-  model where the GEDI labels are sparse.
+  fine-tunes its last two blocks on the local GEDI labels (at most 50 epochs, stopped when the validation loss
+  has not improved for 15 epochs). The airborne-lidar knowledge guides the model where the GEDI labels are
+  sparse.
 - **KG-UNet2**: as KG-UNet1, with two teacher terms in the loss: agreement of the image gradients with UNet-ALS
   (spatial detail) and agreement with UNet-SLS after 4 x 4 average pooling (local height level). It therefore
   needs UNet-SLS of the same project, which is trained first.

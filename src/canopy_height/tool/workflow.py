@@ -9,9 +9,8 @@ ended when the stage is started again.
 The models are trained with the paper's settings (canopy_height.train.RECIPES, canopy_height.rf.RF_PARAMS) in
 their dependency order RF-SLS, UNet-SLS, KG-UNet1, KG-UNet2, on the project's input representation
 (project.INPUTS): KG-UNet1/2 start from the UNet-ALS checkpoint of that representation and KG-UNet2 uses the
-project's own UNet-SLS as GEDI teacher. KG-UNet2 uses the recipe defaults (50 epochs, pooling 4, teacher terms
-from epoch 11, zero labels missing); the paper tuned them per site
-(docs/models.md), which a new area cannot do without reference data, so they can be set
+project's own UNet-SLS as GEDI teacher. KG-UNet2 uses the paper's settings (at most 50 epochs, pooling 4, teacher
+terms and model selection from epoch 11, zero labels missing), the same at every site; they can be changed
 through train_overrides. The only automatic changes are the small-data guard (batch size <= number of training
 chips, because the recipes assume the ~400-chip training regions of the paper) and the RF-SLS row cap
 (rf_max_rows, above the size of the paper's training sets). PyTorch, scikit-learn and Earth Engine are imported

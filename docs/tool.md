@@ -74,9 +74,8 @@ The helpers are in `canopy_height.tool.colab`; install with `pip install ".[cola
    - the three benchmarks for the study-area cells.
 3. **Stack**: the training chips (76-band annual input, 44-band seasonal input if needed, GEDI labels) and the
    study-area mosaics.
-4. **Train** RF-SLS, UNet-SLS, KG-UNet1 and KG-UNet2 with the paper's settings (see [models.md](models.md)). KG-UNet2 uses the
-   recipe defaults (50 epochs, 4 x 4 pooling, teacher terms from epoch 11);
-   the per-site settings of the paper are listed in [models.md](models.md) and can be set through `train_overrides`.
+4. **Train** RF-SLS, UNet-SLS, KG-UNet1 and KG-UNet2. All four models use the paper's settings, which are the same
+   at every site (see [models.md](models.md)); they can be changed through `train_overrides`.
 5. **Predict** every model over the study area (256 px tiles with 32 px blended overlaps; large areas block by
    block with 256 px of context).
 6. **Report** (`report/metrics.csv`, `report/summary.json`, quick-look PNGs):

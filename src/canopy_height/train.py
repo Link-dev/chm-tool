@@ -10,7 +10,7 @@
 `zero_restore` (reset no-data inputs to 0 after normalisation) defaults to the input layout's setting
 for new models and to the checkpoint's setting when starting from one.
 
-Defaults are the settings used in the paper (unet-sls / kg-unet1 / kg-unet2: international sites;
+Defaults are the settings used in the paper (unet-sls / kg-unet1 / kg-unet2: the same at every site;
 unet-als: 3DEP pre-training). Every setting can be overridden. Labels of -999 are missing and ignored;
 batches without any labelled cell are skipped. With a fixed seed, training is repeatable on the same
 hardware and software.
@@ -38,8 +38,9 @@ _COMMON = dict(input="AE", init=None, trainable=None, epochs=100, batch_size=25,
                gpus=1, val_workers=1)
 RECIPES = {
     "unet-sls": dict(_COMMON, epochs=150, patience=15, select="best"),
-    "kg-unet1": dict(_COMMON, init="base", trainable=["up4", "outc"], epochs=50),
-    "kg-unet2": dict(_COMMON, init="base", trainable=["up4", "outc"], epochs=50, zero_to_nodata=True,
+    "kg-unet1": dict(_COMMON, init="base", trainable=["up4", "outc"], epochs=50, patience=15, select="best"),
+    "kg-unet2": dict(_COMMON, init="base", trainable=["up4", "outc"], epochs=50, patience=15, select="best",
+                     zero_to_nodata=True,
                      kg2=dict(mode="add", pool=4, gate=10, w_label=0.5, w_als=0.25, w_sls=0.25)),
     "unet-als": dict(_COMMON, epochs=100, batch_size=150, lr=1e-4, milestones=[150], gamma=0.8,
                      split="shuffle", split_seed=43, seed=43, select="best", patience=10, num_workers=24,
@@ -207,15 +208,19 @@ def train(recipe, out_dir, annual, labels, seasonal=None, base=None, teacher_sls
         log(f"epoch {epoch}\ttrain {tr:.4f}\tval {va:.4f}\t[{time.time()-t0:.0f}s]")
         if not np.isfinite(tr):
             raise FloatingPointError(f"non-finite training loss at epoch {epoch}")
-        if va < best:
+        # kg-unet2: model selection and early stopping start once the teacher terms are active
+        eligible = not kg or epoch > kg["gate"]
+        if eligible and va < best:
             best, best_epoch, since = va, epoch, 0
             if cfg["select"] == "best":
                 save_checkpoint(out / "model.pth", model, mcfg, epoch=epoch, val_loss=va, recipe=cfg)
-        else:
+        elif eligible:
             since += 1
             if cfg["patience"] and since >= cfg["patience"]:
                 log(f"early stop at epoch {epoch} (best {best_epoch})")
                 break
+    if kg and best_epoch is None:
+        raise ValueError(f"no epoch after the teacher gate ({kg['gate']}); increase epochs")
     if cfg["select"] == "last":
         save_checkpoint(out / "model.pth", model, mcfg, epoch=hist[-1][0], val_loss=hist[-1][2], recipe=cfg)
 
@@ -224,6 +229,7 @@ def train(recipe, out_dir, annual, labels, seasonal=None, base=None, teacher_sls
     np.savez(out / "split.npz", train=idx_tr, val=idx_va)
     res = dict(recipe=cfg, model=mcfg, n_chips=n, n_train=len(idx_tr), n_val=len(idx_va), batches_per_epoch=bpe,
                num_workers=nw, gpus=max(ngpu, 1), epochs_run=len(hist), best_epoch=best_epoch,
+               selection_from_epoch=(kg["gate"] + 1) if kg else 0,
                best_val_loss=float(best), final_train_loss=hist[-1][1], final_val_loss=hist[-1][2],
                skipped_empty_batches=skipped, seconds=round(time.time() - t0, 1), torch=torch.__version__,
                device=torch.cuda.get_device_name(device) if device.type == "cuda" else "cpu",
