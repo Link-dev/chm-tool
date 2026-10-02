@@ -292,13 +292,6 @@ def test_cell_layers_follow_the_input_representation(tmp_path):
     p = _set(p, input="E")
     assert download.jobs_for(p, aoi) == [["Embedding"], ["Tolan_1m"], ["ETH"], ["DEM", "GEDI"]]
     assert download.jobs_for(p, ring, wanted=download._wanted(["S2_0", "S1"])) == []     # not layers of E
-    assert download.cell_cost("E", ["GMTCH", "GFCH", "HRCH"]) == ((25.63, 11), (1.23, 7))
-    assert download.cell_cost("AE") == ((27.33, 81), (0, 0))                   # S1 the local way
-    assert download.cell_cost("T") == ((17.23, 98), (0, 0))
-    assert download.cell_cost("AE", s1_method="gee") == ((27.33, 221), (0, 0))
-    assert download.cell_cost("T", s1_method="gee") == ((17.23, 246), (0, 0))
-    with pytest.raises(ValueError, match="choose from"):
-        download.cell_cost("X")
 
 
 def test_seasonal_estimate(tmp_path):

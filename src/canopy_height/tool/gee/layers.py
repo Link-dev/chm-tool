@@ -1,10 +1,10 @@
-"""Earth Engine image recipes of every layer (the paper pipeline's gee_layers.py, config constants as parameters).
+"""Earth Engine image recipes of every layer, as used for the paper's data.
 
   Embedding  GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL, [year-01-01, year-12-31), filterBounds, median        64 bands
   DEM        USGS/SRTMGL1_003 elevation                                                                    int16
   S1         gee_s1_ard chain (IW, VV+VH, both orbits, border-noise mask, multi-temporal Quegan filter with a
              15 px boxcar and the 10 closest acquisitions, VOLUME terrain flattening on SRTM, dB), annual median
-             of [year-01-01, year-12-31). Evaluated the 's1_fast' way: each image's filter set D_i and look
+             of [year-01-01, year-12-31). Evaluated efficiently: each image's filter set D_i and look
              direction are computed once per cell (s1_metadata) and passed in as constants - same mathematics as
              the library, a fraction of the EECU                                                           2 bands
   S2         S2_SR_HARMONIZED + S2_CLOUD_PROBABILITY (< 20), CLOUDY_PIXEL_PERCENTAGE < 40, QA60 bits 10/11,
@@ -14,10 +14,9 @@
   ETH        users/nlang/ETH_GlobalCanopyHeight_2020_10m_v1 (HRCH)                                         uint8
   UMD        users/potapovpeter/GEDI_V27 mosaic (GFCH)                                                     uint8
   Tolan_1m   projects/meta-forest-monitoring-okw37/assets/CanopyHeight mosaic (GMTCH source, 1 m, 255 = no data)
-The expressions are those of the pipeline, unchanged: a re-download of a pipeline cell gives the pipeline file.
+The expressions are those used for the paper's data: a re-download of a paper cell gives the paper's raster.
 
-Seasonal composites (input representations T / TE), the paper's seasonal pipeline (seasonal_gee.py,
-s1_fast.py): window [Dec (year - 1), Dec year), season k = months SEASON_MONTHS[k] (DJF, MAM, JJA, SON) by
+Seasonal composites (input representations T / TE), as for the paper's seasonal data: window [Dec (year - 1), Dec year), season k = months SEASON_MONTHS[k] (DJF, MAM, JJA, SON) by
 calendarRange / UTC month of the acquisition.
   S2_k       as S2 but CLOUDY_PIXEL_PERCENTAGE < 50 (filtered before the masks), cloud probability < 50, median of
              the season's images / 10000 (0-1 reflectance), no final clip                                    9 bands
@@ -25,8 +24,8 @@ calendarRange / UTC month of the acquisition.
              once per cell (s1_seasonal_metadata), median of the season's acquisitions in dB                 2 bands
 The local S1 way (s1_method: local, gee.s1_raw + tool.s1_local) uses only s1_acquisitions / s1_metadata_of /
 s1_scene_info / s1_raw_bands / s1_cell_bands below: pixels and metadata, the chain itself runs in numpy.
-The S1 helpers (_get_filtered_collection, _heading, _Shared, _inner, _quegan, _correct) are those of s1_fast.py
-(checked line by line: only docstrings and constant names differ), so the annual and the seasonal S1 share them.
+The annual and the seasonal S1 share the S1 helpers (_get_filtered_collection, _heading, _Shared, _inner, _quegan,
+_correct).
 border_noise_correction / helper / speckle_filter are the unmodified gee_s1_ard modules (MIT, Mullissa 2021) in
 third_party/gee_s1_ard; they import each other as top-level modules, hence the sys.path entry.
 """
@@ -50,7 +49,7 @@ KERNEL, NR_OF_IMAGES = 15, 10
 S1_BANDS = ["VV", "VH"]
 MEAN_BANDS = [b + "_mean" for b in S1_BANDS]
 RATIO_BANDS = [b + "_ratio" for b in S1_BANDS]
-# seasonal composites (seasonal_gee.py): season k = months SEASON_MONTHS[k] of the window [Dec (year - 1), Dec year)
+# seasonal composites: season k = months SEASON_MONTHS[k] of the window [Dec (year - 1), Dec year)
 SEQ = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 SEASON_MONTHS = [(SEQ[m - 1], SEQ[m + 1]) for m in (1, 4, 7, 10)]      # (12,2) (3,5) (6,8) (9,11)
 SEASONAL_CLOUD = 50                         # seasonal S2: CLOUDY_PIXEL_PERCENTAGE < 50 and cloud probability < 50
@@ -99,7 +98,7 @@ def seasonal_dates(year):
 
 
 def s2_seasonal(geom, year, season):
-    """seasonal_gee.s2_seasonal: season 0..3 of the window, median / 10000."""
+    """Sentinel-2 of season 0..3 of the window, median / 10000."""
     start, end = seasonal_dates(year)
     criteria = ee.Filter.And(ee.Filter.bounds(geom), ee.Filter.date(start, end))
 
@@ -153,7 +152,7 @@ def tolan(geom):
     return ee.ImageCollection("projects/meta-forest-monitoring-okw37/assets/CanopyHeight").mosaic().clip(geom)
 
 
-# ------------------------------------------------------------------------------------------------ S1 (s1_fast)
+# ------------------------------------------------------------------------------------------------------- S1
 def _get_filtered_collection(image):
     """Verbatim speckle_filter.MultiTemporal_Filter.Quegan.get_filtered_collection (NR_OF_IMAGES = 10)."""
     s1_coll = ee.ImageCollection("COPERNICUS/S1_GRD_FLOAT") \
@@ -284,7 +283,7 @@ def s1(geom, meta):
 
 # ------------------------------------------------------------------------------------------------ S1 seasonal
 def s1_seasonal_metadata(geom, year):
-    """s1_fast.metadata: s1_metadata of the acquisitions of the seasonal window [Dec (year - 1), Dec year) (all four
+    """s1_metadata of the acquisitions of the seasonal window [Dec (year - 1), Dec year) (all four
     seasons; s1_seasonal picks a season's) - one getInfo per cell."""
     start, end = seasonal_dates(year)
     col = (ee.ImageCollection("COPERNICUS/S1_GRD_FLOAT")
@@ -356,14 +355,14 @@ def s1_cell_bands(sid, k):
 
 
 def in_season(t_ms, season):
-    """s1_fast._in_season: does an acquisition time (ms, UTC) fall in the months of season 0..3."""
+    """Does an acquisition time (ms, UTC) fall in the months of season 0..3."""
     m = dt.datetime.fromtimestamp(t_ms / 1000, tz=dt.timezone.utc).month
     t1, t2 = SEASON_MONTHS[season]
     return t1 <= m <= t2 if t1 <= t2 else (m >= t1 or m <= t2)
 
 
 def s1_seasonal(geom, meta, season, shared=None):
-    """s1_fast.s1_seasonal: median (dB) of the acquisitions of meta = s1_seasonal_metadata(geom, year) in season 0..3.
+    """Median (dB) of the acquisitions of meta = s1_seasonal_metadata(geom, year) in season 0..3.
     shared: a _Shared of the cell (optional; the request graph is the same without it)."""
     sh = shared or _Shared()
     imgs = []

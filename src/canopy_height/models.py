@@ -165,7 +165,7 @@ def load_checkpoint(path, config=None, map_location="cpu"):
         raise ValueError(f"{path} is a plain state dict; pass its model config")
     else:
         state = obj
-    if config.get("input"):                      # earlier names of the input representations (IE, I) -> AE, A
+    if config.get("input"):                      # aliases IE, I (the paper's checkpoints) -> AE, A
         from . import channels
         config = dict(config, input=channels.canonical(config["input"]))
     return state, config
@@ -193,26 +193,3 @@ def describe(path):
     _, cfg = load_checkpoint(path)
     return json.dumps(cfg, indent=1)
 
-
-def convert_legacy(src, dst, input, zero_restore=None, use_package_stats=False, **meta):
-    """Wrap an original plain state dict into the package checkpoint format.
-
-    use_package_stats: replace the stored mean_t / std_t with the package statistics for `input`
-    (needed for checkpoints that were fed externally standardised inputs, e.g. the seasonal T model,
-    whose buffers hold zeros / ones). Checkpoints without buffers get them from the package.
-    """
-    from . import stats
-    state = torch.load(src, map_location="cpu", weights_only=True)
-    if isinstance(state, dict) and state.get("format") == CHECKPOINT_FORMAT:
-        raise ValueError(f"{src} is already a package checkpoint")
-    cfg = model_config(input, zero_restore=zero_restore)
-    state = {k[7:] if k.startswith("module.") else k: v for k, v in state.items()}
-    n = state["inc.double_conv.0.weight"].shape[1]
-    assert n == cfg["n_channels"], f"{src}: {n} input channels, input {input} has {cfg['n_channels']}"
-    if use_package_stats or "mean_t" not in state:
-        mean, std = stats.for_input(input)
-        state = dict(state)
-        state["mean_t"] = torch.as_tensor(mean, dtype=torch.float32)
-        state["std_t"] = torch.as_tensor(std, dtype=torch.float32)
-    torch.save({"format": CHECKPOINT_FORMAT, "config": cfg, "meta": meta, "state_dict": state}, dst)
-    return cfg

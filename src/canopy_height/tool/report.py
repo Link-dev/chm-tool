@@ -15,7 +15,7 @@ Three sections; each is skipped with a note when its inputs are missing:
               an independent accuracy.
   als         with mosaic/ALS.tif: accuracy against ALS in the paper's convention for the international sites,
               inside the study area: 256 px chips of the mosaic grid, kept when >= 1 % of their cells have
-              ALS > 1 m (ALS NaN -> -999, the rule of the pipeline's test tiles), the same chips for every layer;
+              ALS > 1 m (ALS NaN -> -999, as for the paper's test chips), the same chips for every layer;
               canopy_height.metrics.evaluate_chips (ALS cells > 1 m, 80 m cap, missing predictions count as 0):
               chip-median RMSE and r2, pooled ME.
 

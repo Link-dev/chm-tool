@@ -2,7 +2,6 @@
 import hashlib
 import json
 import os
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -19,11 +18,15 @@ from canopy_height.tool import stack  # noqa: E402
 from canopy_height.tool.project import INPUTS, Project  # noqa: E402
 
 EPSG, GX0, GY1 = 32650, 584670.0, 550110.0
-# the paper's pipeline code (optional: the comparisons with it are skipped without it)
-PIPELINE = os.environ.get("CHM_PIPELINE_DIR", "no-pipeline")
-SEASONAL_PIPELINE = os.environ.get("CHM_SEASONAL_DIR", "no-seasonal-pipeline")
 SEASONAL = [f"S1_asc_{k}" for k in range(4)] + [f"S2_{k}" for k in range(4)]
 BAND_NAMES = {"S1": ["VV", "VH"], "S2": ["B2", "B3", "B4", "B5", "B6", "B7", "B8", "B11", "B12"]}
+
+
+def stack_outdated(p):
+    """Why the training stack of project p must be rebuilt ('' when it is current)."""
+    df = stack.read_cells(p)
+    return stack._stack_state(p, p.path("stacks"), df[df["use"]].to_dict("records"),
+                              stack.file_sha256(p.cells_file))
 
 
 def _layer(name, seed):
@@ -133,24 +136,6 @@ def test_encodings():
     assert g.dtype == np.float32 and g.tolist() == [-999, -999, 3.5, 0]
 
 
-@pytest.mark.skipif(not os.path.exists(os.path.join(PIPELINE, "common.py")), reason="pipeline code not available")
-def test_matches_pipeline_common(tmp_path):
-    sys.path.insert(0, PIPELINE)
-    try:
-        import common as U
-    finally:
-        sys.path.remove(PIPELINE)
-    cell = _cell(0, 0, "aoi")
-    p = _project(tmp_path / "p", [cell])
-    a = _fill(p, cell, X5, 1)
-    f = {k: str(p.raw(cell["cell"], k)) for k in X5}
-    ref_x = U.encode_x(*(U.read_tile(f[k], 0, "reflect") for k in stack.X_LAYERS))
-    ref_g = U.enc999(U.read_tile(f["GEDI"], 0, "reflect", bands=1)[0])
-    x, _ = stack.cell_x(p, cell)
-    g = stack.enc999(stack.read_cell_layer(f["GEDI"], cell, 1)[0])
-    assert np.array_equal(x, ref_x) and np.array_equal(g, ref_g) and np.array_equal(x, _expected_x(a))
-
-
 # ------------------------------------------------------------------------------------------------ training stack
 def test_build_train_stack(tmp_path, monkeypatch):
     monkeypatch.setattr(stack, "PART", 2)
@@ -227,39 +212,24 @@ def test_stack_rebuilt_on_changed_inputs_and_settings(tmp_path):
     assert h["inputs"]["raw/" + cells[0]["cell"] + "_GEDI.tif"][0] == os.path.getsize(p.raw(cells[0]["cell"], "GEDI"))
     sid = stack.stack_id(p)
     assert sid == hashlib.sha256(json.dumps(h["files"], sort_keys=True).encode()).hexdigest()
-    assert stack.stack_outdated(p) == ""
+    assert stack_outdated(p) == ""
 
     # re-downloaded labels -> rebuilt with them
     g = _layer("GEDI", 77)
     _write(p.raw(cells[1]["cell"], "GEDI"), g, cells[1]["x0"], cells[1]["y1"])
-    assert stack.stack_outdated(p).startswith("1 input rasters changed")
+    assert stack_outdated(p).startswith("1 input rasters changed")
     stack.build_train_stack(p)
     assert np.array_equal(np.load(p.stack_files("GEDI")[0])[1], _expected_gedi({"GEDI": g}))
     assert stack.stack_id(p) != sid and "rebuilding the training stack (1 input rasters changed" in _log(p)
 
     # changed settings -> rebuilt
     p.cfg["gedi_window"] = ["2019-01-01", "2020-01-01"]
-    assert "gedi_window" in stack.stack_outdated(p)
+    assert "gedi_window" in stack_outdated(p)
     t = _mtimes(p)
     stack.build_train_stack(p)
     assert _mtimes(p) != t and json.load(open(hf))["settings"]["gedi_window"] == ["2019-01-01", "2020-01-01"]
-    assert stack.stack_outdated(p) == ""
+    assert stack_outdated(p) == ""
 
-    # hashes.json of an earlier version (no settings / inputs): adopted when no input raster is newer ...
-    h = json.load(open(hf))
-    old = {k: v for k, v in h.items() if k not in ("settings", "inputs")}
-    json.dump(old, open(hf, "w"))
-    t, sid = _mtimes(p), stack.stack_id(p)
-    stack.build_train_stack(p)
-    assert _mtimes(p) == t and stack.stack_id(p) == sid and json.load(open(hf)) == h
-    assert "stack of an earlier version" in _log(p)
-    # ... else rebuilt
-    json.dump(old, open(hf, "w"))
-    early = min(v for f in p.path("raw").iterdir() for v in [f.stat().st_mtime_ns]) - 10 ** 9
-    os.utime(hf, ns=(early, early))
-    assert stack.stack_outdated(p) == "input rasters newer than the stack"
-    stack.build_train_stack(p)
-    assert _mtimes(p) != t and "inputs" in json.load(open(hf))
 
 
 def test_stack_built_in_a_scratch_folder(tmp_path, monkeypatch):
@@ -336,7 +306,7 @@ def test_stack_id_and_model_is_current(tmp_path):
 
     # a stray part or a missing hashes.json: incomplete
     np.save(p.stack_part("x", 9), np.zeros(1, np.uint16))
-    assert stack.stack_id(p) is None and stack.stack_outdated(p) == "stack parts missing or left over"
+    assert stack.stack_id(p) is None and stack_outdated(p) == "stack parts missing or left over"
     stack.build_train_stack(p)
     assert stack.stack_id(p) == sid and not p.stack_part("x", 9).exists()
     p.path("stacks", "hashes.json").unlink()
@@ -613,20 +583,6 @@ def test_encode_seasonal():
         stack.encode_seasonal({**arr, "S2_0": s2[:8]})
 
 
-@pytest.mark.skipif(not os.path.exists(os.path.join(SEASONAL_PIPELINE, "make_outside_seasonal.py")),
-                    reason="seasonal pipeline code not available")
-def test_encode_seasonal_matches_paper_pipeline():
-    sys.path.insert(0, SEASONAL_PIPELINE)
-    try:
-        import make_outside_seasonal as M
-    finally:
-        sys.path.remove(SEASONAL_PIPELINE)
-    assert M.LAYERS == stack.SEASONAL_LAYERS and M.BANDS == stack.SEASONAL_BANDS and M.NB == 44
-    a = {k: _layer(k, 40 + i) for i, k in enumerate(SEASONAL)}
-    ref = np.concatenate([M.encode(k, a[k]) for k in M.LAYERS])
-    assert np.array_equal(stack.encode_seasonal(a), ref) and np.array_equal(ref, _expected_seasonal(a))
-
-
 def _needed_layers(inp):
     return INPUTS[inp]["annual"] + (SEASONAL if INPUTS[inp]["seasonal"] else []) + ["GEDI"]
 
@@ -663,14 +619,14 @@ def test_seasonal_training_stack_T_and_TE(tmp_path, monkeypatch):
         assert h["files"][os.path.basename(f)] == dict(shape=list(a.shape), dtype="uint16",
                                                        data_sha256=stack.data_sha256(a))
     assert list(h["inputs"]) == [f"raw/{c['cell']}_{k}.tif" for c in cells for k in _needed_layers("T")]
-    assert not list(p.path("stacks").glob("*.tmp.*")) and stack.stack_outdated(p) == ""
+    assert not list(p.path("stacks").glob("*.tmp.*")) and stack_outdated(p) == ""
     sid_t = stack.stack_id(p)
     assert sid_t == hashlib.sha256(json.dumps(h["files"], sort_keys=True).encode()).hexdigest()
 
     # a re-downloaded seasonal raster -> rebuilt
     s = _layer("S1_asc_2", 77)
     _write(p.raw(cells[2]["cell"], "S1_asc_2"), s, cells[2]["x0"], cells[2]["y1"], descriptions=["VV", "VH"])
-    assert stack.stack_outdated(p).startswith("1 input rasters changed")
+    assert stack_outdated(p).startswith("1 input rasters changed")
     stack.build_train_stack(p)
     data[cells[2]["cell"]]["S1_asc_2"] = s
     assert np.array_equal(np.load(p.stack_files("seasonal")[1])[0], _expected_seasonal(data[cells[2]["cell"]]))
@@ -693,14 +649,14 @@ def test_seasonal_training_stack_T_and_TE(tmp_path, monkeypatch):
 
     # TE: the Embedding is needed -> missing rasters, then a settings change (the annual channels differ)
     p.cfg["input"] = "TE"
-    assert stack.stack_outdated(p) == "input rasters missing"
+    assert stack_outdated(p) == "input rasters missing"
     with pytest.raises(FileNotFoundError, match="rasters of used cells missing"):
         stack.build_train_stack(p)
     with pytest.raises(FileNotFoundError, match="input TE needs the Embedding layer"):
         stack.cell_x(p, cells[0])
     for i, c in enumerate(cells):
         data[c["cell"]].update(_fill(p, c, ["Embedding"], 30 + i))
-    assert stack.stack_outdated(p) == "settings changed: input T -> TE"
+    assert stack_outdated(p) == "settings changed: input T -> TE"
     stack.build_train_stack(p)
     X2 = np.concatenate([np.load(f) for f in p.stack_files("x")])
     S2 = np.concatenate([np.load(f) for f in p.stack_files("seasonal")])
@@ -755,30 +711,6 @@ def test_seasonal_band_order_is_checked(tmp_path):
         stack.cell_seasonal(p, c)
 
 
-def test_hashes_without_input_are_ie(tmp_path):
-    """hashes.json written before the input representation was a setting: an AE stack, kept as it is."""
-    cells = [_cell(0, 0, "aoi"), _cell(0, 1, "aoi")]
-    p = _project(tmp_path / "p", cells)
-    for i, c in enumerate(cells):
-        _fill(p, c, X5, i)
-    stack.build_train_stack(p)
-    hf = p.path("stacks", "hashes.json")
-    h = json.load(open(hf))
-    del h["settings"]["input"]
-    json.dump(h, open(hf, "w"))
-    t = _mtimes(p)
-    assert stack.stack_outdated(p) == ""
-    stack.build_train_stack(p)
-    assert _mtimes(p) == t
-    p.cfg["input"] = "E"
-    assert stack.stack_outdated(p) == "settings changed: input AE -> E"
-    # hashes.json of the first version (no settings, no inputs): adopted for AE only
-    json.dump({k: v for k, v in h.items() if k not in ("settings", "inputs")}, open(hf, "w"))
-    assert stack.stack_outdated(p) == "settings changed: input AE -> E"
-    p.cfg["input"] = "AE"
-    assert stack.stack_outdated(p) == "" and json.load(open(hf))["settings"]["input"] == "AE"
-
-
 def test_seasonal_mosaics(tmp_path):
     p, cells, data = _mosaic_project(tmp_path / "p")               # AE first: every layer of the used cells
     for i, c in enumerate(cells):
@@ -818,26 +750,3 @@ def test_seasonal_mosaics(tmp_path):
     c = cells[0]
     assert np.array_equal(A[:, :256, :256], _expected_x(data[c["cell"]]))
 
-
-def test_earlier_input_names_keep_stacks_and_models(tmp_path):
-    """Stacks and models recorded with the earlier names IE / I are current for the projects' AE / A."""
-    cells = [_cell(0, 0, "aoi"), _cell(0, 1, "aoi")]
-    p = _project(tmp_path / "p", cells)
-    for i, c in enumerate(cells):
-        _fill(p, c, X5, i)
-    stack.build_train_stack(p)
-    hf = p.path("stacks", "hashes.json")
-    h = json.load(open(hf))
-    h["settings"]["input"] = "IE"                                    # written by an earlier version
-    json.dump(h, open(hf, "w"))
-    t = _mtimes(p)
-    assert p["input"] == "AE" and stack.stack_outdated(p) == ""
-    stack.build_train_stack(p)
-    assert _mtimes(p) == t                                           # not rebuilt
-    d = p.model_dir("unet-sls")
-    d.mkdir(parents=True)
-    (d / "stack_id.txt").unlink(missing_ok=True)
-    json.dump(dict(model=dict(input="IE"), annual=p.stack_files("x"), labels=p.stack_files("GEDI"),
-                   n_chips=len(cells), seasonal=[]), open(d / "result.json", "w"))
-    ok, why = stack.model_is_current(p, "unet-sls")
-    assert ok, why

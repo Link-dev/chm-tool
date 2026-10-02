@@ -106,9 +106,7 @@ alone takes about 150-500 EECU-seconds per cell (it grows with the number of acq
 layers and trains the models again.
 
 Letters: **A** = annual Sentinel-1/2 + DEM, **E** = Earth embedding (Google Satellite Embedding), **T** = four
-seasonal (temporal) Sentinel-1/2 composites + DEM. AE and A were called IE and I in earlier versions (and
-`UNet-A-ALS.pth` was `UNet-S-ALS.pth`); the earlier names are still accepted in settings, checkpoints and project
-files.
+seasonal (temporal) Sentinel-1/2 composites + DEM.
 
 ## Settings (`project.yaml`)
 
@@ -134,7 +132,7 @@ speckle filter (15 x 15 boxcar, the 10 closest acquisitions), volume-model terra
   Earth Engine way to about 1e-5 dB. Billed Earth Engine compute per cell is about a tenth of the Earth Engine way
   (about 10 instead of about 140 EECU-seconds with ~30 acquisitions a year). Cells whose CRS is not a WGS84 UTM
   zone take the Earth Engine way.
-- `gee`: the chain runs on Earth Engine, as in the paper's pipeline (bit for bit).
+- `gee`: the chain runs on Earth Engine, as for the paper's data (bit for bit).
 
 Rasters record the way in their `s1_method` tag; changing the setting keeps existing downloads.
 

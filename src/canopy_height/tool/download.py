@@ -1,6 +1,5 @@
-"""Download stage: every layer of every planned cell from Earth Engine onto the analysis grid (port of the paper
-pipeline's step1_gee_download.export_layers / _write and step2_local_crop.gmtch_array, and for the seasonal layers
-of the seasonal pipeline's make_outside_seasonal.download_piece).
+"""Download stage: every layer of every planned cell from Earth Engine onto the analysis grid, with the requests
+and file formats used for the paper's data.
 
 Per used cell of plan/cells.csv (use == True): the input layers of project['input'] (project.input_layers: annual
 Embedding / DEM / S1 / S2 as the representation needs them, the seasonal S1_asc_0..3 / S2_0..3 for T and TE) and
@@ -9,9 +8,8 @@ project['built_up_mask']) with DEM; per study-area cell (role aoi) also the benc
 HRCH -> ETH, GFCH -> UMD, GMTCH -> Tolan_1m (1 m), then GMTCH = p90 of the 10 x 10 Tolan pixels of every 10 m cell,
 computed locally. Layers the representation does not use are not downloaded.
 
-The file formats are the pipelines', so their rasters and the tool's are interchangeable (and imported pipeline
-cells are simply skipped): float64 with NaN for Embedding / S1 / S2 / GEDI and the seasonal layers (S1_asc_k: VV, VH
-in dB; S2_k: B2 ... B12 as 0-1 reflectance), DEM int16, ETH / UMD uint8 (0 = no data), Tolan_1m uint8 (255 = no
+File formats (imported cells are simply skipped): float64 with NaN for Embedding / S1 / S2 / GEDI and the seasonal
+layers (S1_asc_k: VV, VH in dB; S2_k: B2 ... B12 as 0-1 reflectance), DEM int16, ETH / UMD uint8 (0 = no data), Tolan_1m uint8 (255 = no
 data) on the 1 m grid nested in the cell, GMTCH float32 (NaN). One job = one layer, except DEM + GEDI (one request);
 Sentinel-1 depends on project['s1_method']: 'local' (default) fetches the raw scenes of the cell (gee.s1_raw) and
 runs the chain in numpy (s1_local), with the acquisition metadata requested once for all cells (s1_regions, file
@@ -31,7 +29,7 @@ from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
 import numpy as np
 
-from .project import (BENCHMARKS, CELL_PX, INPUTS, LABEL_LAYER, RES, SEASONAL_LAYERS, X_LAYERS, input_layers,
+from .project import (BENCHMARKS, CELL_PX, LABEL_LAYER, RES, SEASONAL_LAYERS, X_LAYERS, input_layers,
                       replace_retry)
 
 INT_LAYERS = {"DEM": ("int16", 0), "ETH": ("uint8", 0), "UMD": ("uint8", 0), "Tolan_1m": ("uint8", 255)}
@@ -41,17 +39,16 @@ SEASONS = ("DJF", "MAM", "JJA", "SON")              # season k of S1_asc_k / S2_
 SEASONAL_BANDS = {"S1": ["VV", "VH"], "S2": ["B2", "B3", "B4", "B5", "B6", "B7", "B8", "B11", "B12"]}
 CHUNK = {"Embedding": 256, "S1": 256, "S2": 512, "DEM": 1024, "ETH": 1024, "UMD": 1024, "GEDI": 1024,
          "Tolan_1m": 2560,                          # getDownloadURL chunk (px); split 2 x 2 on memory errors
-         **{l: 512 for l in S1_SEASONAL}, **{l: 768 for l in S2_SEASONAL}}     # as make_outside_seasonal
+         **{l: 512 for l in S1_SEASONAL}, **{l: 768 for l in S2_SEASONAL}}
 BUNDLE = ("DEM", LABEL_LAYER)                       # downloaded together in one request
 CHECK_EVERY = 50                                    # progress line every so many cells while checking existing files
 FILE_LAYERS = X_LAYERS + SEASONAL_LAYERS + [LABEL_LAYER, "ETH", "UMD", "Tolan_1m", "GMTCH"]
 YEAR_LAYERS = ("Embedding", "S1", "S2", *SEASONAL_LAYERS)          # content depends on project['year']
 # rough cost of one 256 x 256 cell per job (MB on disk, Earth Engine EECU-seconds). Sentinel-1 by the Earth Engine
-# way (s1_method: gee) dominates the compute: billed 139 EECU-s for a cell with 31 acquisitions / year (measured
-# 2026-09-29 by workload tag), growing with the number of acquisitions (whole-project averages of the paper's
-# 2026-09 exports: 650-2900 per cell). Seasonal S1: every acquisition of the window is processed once,
+# way (s1_method: gee) dominates the compute: billed 139 EECU-s for a cell with 31 acquisitions / year, growing
+# with the number of acquisitions (whole-project averages of the paper's exports: 650-2900 per cell). Seasonal S1: every acquisition of the window is processed once,
 # in its season, so the four seasons together cost about the annual S1; seasonal S2 is stored as 0-1 floats (less
-# compressible than the annual DN): 3.4-3.5 MB per season (measured 2026-09-27)
+# compressible than the annual DN): 3.4-3.5 MB per season
 COST = {"Embedding": (25.6, 5), "S1": (0.9, 150), "S2": (0.8, 60), "DEM": (0.01, 1), "GEDI": (0.02, 5),
         "ETH": (0.02, 1), "UMD": (0.01, 1), "Tolan_1m": (1.2, 5),
         **{l: (0.9, 40) for l in S1_SEASONAL}, **{l: (3.4, 20) for l in S2_SEASONAL}}
@@ -64,9 +61,6 @@ EECU_RANGE = {"S1": (100, 3000), **{l: (25, 750) for l in S1_SEASONAL}}
 COST_S1_LOCAL = {"S1": (0.9, 10), **{l: (0.9, 3) for l in S1_SEASONAL}}
 EECU_RANGE_S1_LOCAL = {"S1": (6, 60), **{l: (1.5, 15) for l in S1_SEASONAL}}
 TRANSFER_MB = {"S1": 50, **{l: 12.5 for l in S1_SEASONAL}}
-S1_METHODS = ("local", "gee")
-
-
 def is_s1(layer):
     """Annual or seasonal Sentinel-1 layer."""
     return layer == "S1" or layer in S1_SEASONAL
@@ -140,7 +134,7 @@ def settings_mismatch(project, row, layer):
 
     Compares the tags written by export: year (YEAR_LAYERS) and gedi_start / gedi_end / built_up_mask (GEDI).
     Tags that are missing or empty are accepted, and so are an imported cell's own rasters (its table defines
-    them; the pipeline's EBR table mixes 2019 and 2020 pieces).
+    them).
     """
     if layer not in YEAR_LAYERS and layer != LABEL_LAYER:
         return None
@@ -310,7 +304,7 @@ class S1MetaCache:
 
 
 def _export_seasonal(layer, dst, geom, epsg, x0, y1, year, base, W, H, s1_cache):
-    """One seasonal layer as make_outside_seasonal.download_piece: S1_asc_k / S2_k unmasked to SENTINEL, float64,
+    """One seasonal layer: S1_asc_k / S2_k unmasked to SENTINEL, float64,
     bands VV, VH / B2 ... B12; a season without acquisitions (S1: none in the metadata, S2: no bands) -> NaN."""
     from .gee import io, layers as L
     kind, k = L.seasonal(layer)
@@ -588,13 +582,3 @@ def estimate(project):
                      "the Earth Engine way, growing with the number of acquisitions (annual, or the four seasons "
                      "together); the stack, mosaics and models need further disk space.")
 
-
-def cell_cost(inp="AE", benchmarks=(), s1_method="local"):
-    """Rough download cost before the plan stage: ((MB, EECU-s) of one training cell, (MB, EECU-s) added by one
-    study-area cell) for input representation `inp`, the benchmarks (products, e.g. 'GMTCH') and the S1 way."""
-    if inp not in INPUTS:
-        raise ValueError(f"input {inp!r}: choose from {list(INPUTS)}")
-    used = _cell_inputs(inp)
-    extra = ["Tolan_1m" if b == "GMTCH" else BENCHMARKS[b] for b in benchmarks if b in BENCHMARKS]
-    return tuple(tuple(round(sum(layer_cost(x, s1_method)[i] for x in ls), 2) for i in (0, 1))
-                 for ls in (used, extra))

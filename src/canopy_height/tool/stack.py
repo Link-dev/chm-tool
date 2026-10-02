@@ -1,22 +1,22 @@
 """Training stack, study-area mosaics and ALS reference of the canopy-height tool.
 
-Port of step 3 of the paper's international-site data pipeline (step3_stack.py, common.py). Every used cell of plan/cells.csv has one whole 256 x 256 raster per layer, i.e. it is one training
+Every used cell of plan/cells.csv has one whole 256 x 256 raster per layer, i.e. it is one training
 chip, encoded exactly as in the paper's stacks:
 
     X         uint16 [76, 256, 256] = 64 x (Embedding+1)*1e4, DEM, 2 x (S1 dB+50)*100, 9 x S2 as exported
               (float64 -> NaN->0 -> clip 0..65535 -> truncate)
     seasonal  uint16 [44, 256, 256] = S1_asc_0..3 (VV, VH: (dB+50)*100), then S2_0..3 (B2 ... B12: 0-1 reflectance
-              *1e4), same NaN->0 / clip / truncate: the paper's seasonal stacks (make_outside_seasonal.py,
-              ENCODING v2-f64-trunc), band order channels.SEASONAL_BANDS; only for the inputs T / TE
+              *1e4), same NaN->0 / clip / truncate, as the paper's seasonal stacks; band order
+              channels.SEASONAL_BANDS; only for the inputs T / TE
     GEDI      float32 [256, 256], NaN / -9999 -> -999 (= no label)
 
 The input representation project['input'] (project.INPUTS) decides which rasters are read: the annual layers it
 does not use are not read (not downloaded) and their channels of X are 0 (= no data, not read by its models); the
 seasonal layers (project.SEASONAL_LAYERS) are stacked when it needs them. With the default AE every layer is used
-and the stacks are those of the paper's pipeline.
+and the stacks are those of the paper.
 
-Chips are stacked in cells.csv order, because that order defines the training / validation split: cells imported
-from the pipeline's rows_<G>.csv give that pipeline stack bit for bit. stacks/hashes.json (written last) records
+Chips are stacked in cells.csv order, because that order defines the training / validation split: imported cells
+keep the order of their table. stacks/hashes.json (written last) records
 the data hashes, cells.csv, the settings the rasters depend on (and the input representation) and the size / mtime
 of every input raster; the stack is rebuilt when any of them changes. `stack_id` identifies a complete stack,
 `model_is_current` tells whether a model was trained on it.
@@ -50,7 +50,7 @@ from .. import channels, labels
 from .project import (BENCHMARKS, CELL_M, CELL_PX, INPUTS, LABEL_LAYER, PART, RES, SEASONAL_LAYERS, X_LAYERS,
                       canonical_input, input_layers, replace_retry)
 
-WORKERS = 8                                            # raster-reading threads (as the pipeline)
+WORKERS = 8                                            # raster-reading threads
 TOL = 0.01                                             # m, tolerance of cell origins
 X_BANDS = {"Embedding": 64, "DEM": 1, "S1": 2, "S2": 9}
 # bands of the seasonal layers S1_asc_k / S2_k (by prefix), in the order of the paper's rasters
@@ -74,8 +74,8 @@ def encode_x(emb, dem, s1, s2):
 def encode_seasonal(arrays):
     """44-band uint16 seasonal input from {layer: [bands, H, W]} of the SEASONAL_LAYERS (or a sequence in that
     order): S1_asc_0..3 (VV, VH) then S2_0..3 (B2 ... B12) = channels.SEASONAL_BANDS; float64 -> S1 (dB+50)*100,
-    S2 (0-1 reflectance)*1e4 -> NaN->0 -> clip 0..65535 -> truncate (identical to make_outside_seasonal.encode of
-    the paper's seasonal stacks)."""
+    S2 (0-1 reflectance)*1e4 -> NaN->0 -> clip 0..65535 -> truncate (as the paper's seasonal
+    stacks)."""
     if not isinstance(arrays, dict):
         arrays = dict(zip(SEASONAL_LAYERS, arrays))
     out = []
@@ -96,7 +96,7 @@ def enc999(a):
 
 
 def data_sha256(arr):
-    """sha256 of the array data (C order), as recorded in hashes.json and by the pipeline."""
+    """sha256 of the array data (C order), as recorded in hashes.json."""
     return hashlib.sha256(np.ascontiguousarray(arr).tobytes()).hexdigest()
 
 
@@ -146,7 +146,7 @@ def _epsg_of(row, grid):
 
 
 def read_cell_layer(path, row, bands=None, epsg=None, names=None):
-    """Whole-cell raster as float64 (read like the pipeline reads a one-tile piece) and its EPSG, after checking
+    """Whole-cell raster as float64 and its EPSG, after checking
     that it is 256 x 256 at 10 m with the upper-left corner at the cell's (x0, y1) (and in `epsg` if given; with
     `names`: that it has these bands, band descriptions - when set - in this order)."""
     with rasterio.open(path) as s:
@@ -287,19 +287,10 @@ def _stack_state(project, d, rows, cells_sha):
     inputs = _inputs(project, rows)
     if inputs is None:
         return "input rasters missing"
-    if "inputs" not in h:                          # hashes.json of an earlier version: adopted if no raster is newer
-        if project["input"] != "AE":               # (those stacks are all of the input AE, formerly IE)
-            return f"settings changed: input AE -> {project['input']}"
-        built = (d / "hashes.json").stat().st_mtime_ns
-        if any(mt > built for _, mt in inputs.values()):
-            return "input rasters newer than the stack"
-        h.update(settings=_settings(project), inputs=inputs)
-        _write_hashes(d, h)
-        project.log("stack: settings and input fingerprint added to stacks/hashes.json (stack of an earlier version)")
+    if "inputs" not in h:
+        return "no input fingerprint in stacks/hashes.json"
     now = _settings(project)
     old = dict(h.get("settings") or {})
-    old.setdefault("input", "AE")                  # recorded before the input representation was a setting
-    old["input"] = canonical_input(old["input"])   # earlier names IE, I -> AE, A
     if old != now:
         return "settings changed: " + ", ".join(f"{k} {old.get(k)} -> {v}" for k, v in now.items() if old.get(k) != v)
     if h["inputs"] != inputs:
@@ -307,14 +298,6 @@ def _stack_state(project, d, rows, cells_sha):
         changed += [k for k in h["inputs"] if k not in inputs]
         return f"{len(changed)} input rasters changed since the stack was built, e.g. {changed[0]}"
     return ""
-
-
-def stack_outdated(project):
-    """Why the training stack must be rebuilt ('' when it is complete and matches cells.csv, the settings and the
-    input rasters; a hashes.json of an earlier version is completed in place when no input raster is newer)."""
-    d = project.path("stacks")
-    df = read_cells(project)
-    return _stack_state(project, d, df[df["use"]].to_dict("records"), file_sha256(project.cells_file))
 
 
 def stack_id(project):
@@ -613,13 +596,13 @@ def _write_aoi_mask(project, lay, profile, path):
 
 def mosaics_match_input(project):
     """mosaic/annual.tif (and, for the inputs T / TE, mosaic/seasonal.tif) exist and were built for the project's
-    input representation (tag 'input'; mosaics of earlier versions without it: AE, formerly IE)."""
+    input representation (tag 'input')."""
     files = [project.mosaic("annual")] + ([project.mosaic("seasonal")] if project.seasonal else [])
     for f in files:
         if not f.exists():
             return False
         with rasterio.open(f) as s:
-            if canonical_input(s.tags().get("input") or "AE") != project["input"]:
+            if s.tags().get("input") != project["input"]:
                 return False
     return True
 

@@ -1,14 +1,8 @@
-import os
-import sys
-
 import numpy as np
 import pytest
 import torch
 
-from canopy_height import channels, labels, models, predict, train
-
-REL = os.environ.get("CHM_RELEASE_CODE")  # optional: path of the verified release code for cross-checks
-
+from canopy_height import channels, labels, models, predict
 
 def _rand_input(c, h=32, w=32, seed=0):
     g = np.random.default_rng(seed)
@@ -26,21 +20,6 @@ def test_input_layouts():
     assert te.shape == (2, 109, 4, 4) and (te[:, :65] == a[:, :65]).all() and (te[:, 65:] == s).all()
     t = channels.assemble("T", a, s)
     assert (t[:, 0] == a[:, 64]).all() and (t[:, 1:] == s).all()
-
-
-@pytest.mark.skipif(not REL, reason="CHM_RELEASE_CODE not set")
-def test_matches_release_model():
-    sys.path.insert(0, REL)
-    import model as old
-    mean, std = np.linspace(100, 900, 76), np.linspace(10, 90, 76)
-    torch.manual_seed(1); a = old.NormalizingUNet(76, 1, mean, std)
-    torch.manual_seed(1); b = models.NormalizingUNet(76, 1, mean, std)
-    sa, sb = a.state_dict(), b.state_dict()
-    assert sa.keys() == sb.keys() and all(torch.equal(sa[k], sb[k]) for k in sa)
-    x = _rand_input(76)
-    a.eval(); b.eval()
-    with torch.no_grad():
-        assert torch.equal(a(torch.tensor(x)), b(torch.tensor(x)))
 
 
 def test_standardise_only_equals_external_zscore():
@@ -98,20 +77,8 @@ def test_tile_roundtrip(tmp_path):
     assert (Y[-1][:, 4:] == -999).all() and (Y[-1][122:, :] == -999).all() and (Y[-1][:122, :4] != -999).all()
 
 
-def test_shuffle_split_matches_saved():
-    f = os.environ.get("CHM_SPLIT_RUN1")
-    if not f:
-        pytest.skip("CHM_SPLIT_RUN1 not set")
-    z = np.load(f)
-    tr, va = train.split_chips(46448, train.resolve("unet-als"))
-    keys = {k: z[k] for k in z.files}
-    print({k: v.shape for k, v in keys.items()})
-    assert np.array_equal(np.sort(va), np.sort(keys.get("val", keys.get("val_idx"))))
-    assert np.array_equal(np.sort(tr), np.sort(keys.get("train", keys.get("train_idx"))))
-
-
 def test_earlier_input_names(tmp_path):
-    """IE / I (earlier names) are AE / A everywhere: lookups, new configs, loaded checkpoints, projects."""
+    """The aliases IE / I are AE / A everywhere: lookups, new configs, loaded checkpoints, projects."""
     assert channels.canonical("IE") == "AE" and channels.canonical("I") == "A" and channels.canonical("E") == "E"
     assert channels.INPUTS["IE"] is channels.INPUTS["AE"] and "I" in channels.INPUTS
     assert list(channels.INPUTS) == ["AE", "A", "E", "T", "TE"]

@@ -6,7 +6,7 @@
     chm-tool app [DIR] [--port 8501]                                     the Streamlit interface
 
 Single stages: plan | download | stack | train | predict | report DIR. `import-cells DIR --rows CSV` replaces
-the plan stage by a table of existing 256 x 256 rasters (e.g. a plan of the paper's data pipeline).
+the plan stage by a table of existing 256 x 256 rasters.
 Settings not given to `init` keep the paper's defaults (project.DEFAULTS); edit DIR/project.yaml to change them.
 """
 import argparse
@@ -98,8 +98,7 @@ def build_parser():
     p.add_argument("--aoi", required=True, help="study area: shapefile, .zip, GeoJSON, GeoPackage or KML")
     p.add_argument("--name")
     p.add_argument("--input", choices=list(INPUTS) + list(ALIASES),
-                   help="input representation (default AE): " + "; ".join(f"{k} = {v['label']}" for k, v in INPUTS.items())
-                   + " (the earlier names IE and I mean AE and A)")
+                   help="input representation (default AE): " + "; ".join(f"{k} = {v['label']}" for k, v in INPUTS.items()))
     p.add_argument("--year", type=int, help="year of the annual inputs, 2019-2024 (default 2020)")
     p.add_argument("--gee-project", help="Google Cloud project registered for Earth Engine")
     p.add_argument("--s1-method", choices=["local", "gee"],
@@ -140,7 +139,7 @@ def build_parser():
 
     p = sub.add_parser("import-cells", help="use existing 256 x 256 rasters as the cells (replaces plan)")
     p.add_argument("dir")
-    p.add_argument("--rows", required=True, help="table of the rasters, e.g. plans/rows_<site>.csv")
+    p.add_argument("--rows", required=True, help="CSV table of the rasters")
     p.add_argument("--role-map", nargs="+", default=["test=aoi"], help="KIND=ROLE pairs (default test=aoi)")
     p.add_argument("--default-role", choices=["aoi", "ring"], default="ring")
     p.set_defaults(func=cmd_import_cells)

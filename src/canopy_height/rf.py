@@ -123,7 +123,7 @@ def load_rf(path):
         meta = json.load(open(side))
     if meta is None:
         raise ValueError(f"{path} has no metadata; write {side} with input and encoding")
-    meta = dict(meta, input=channels.canonical(meta["input"]))       # earlier names IE, I -> AE, A
+    meta = dict(meta, input=channels.canonical(meta["input"]))       # aliases IE, I -> AE, A
     n = channels.INPUTS[meta["input"]]["n_channels"]
     if getattr(rf, "n_features_in_", n) != n:
         raise ValueError(f"forest has {rf.n_features_in_} features, input {meta['input']} has {n}")

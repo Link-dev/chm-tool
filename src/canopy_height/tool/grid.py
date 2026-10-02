@@ -4,17 +4,16 @@ The study area is read from any common vector format (geometry only), dissolved 
 (aoi.geojson); a study area across the 180th meridian must be split into separate projects. The analysis grid is
 10 m in the UTM zone of the study area's centroid, anchored at the upper-left corner of its bounding box, and cut
 into 256 x 256 px cells (one cell = one chip of the training stack and of the study-area mosaic).
-The anchor is snapped with a 0.1 m tolerance, so a study area drawn on a pipeline grid (e.g. anchor
+The anchor is snapped with a 0.1 m tolerance, so a study area drawn on an existing 10 m grid (e.g. anchor
 584670 / 550110 in EPSG:32650) survives the EPSG:4326 round trip of aoi.geojson unchanged
-and the tool's cells coincide with the pipeline's.
+and the cells coincide with that grid.
 
-Training region (the paper's international sites, `train_cover400`, generalised): the cells of the study area
+Training region (as for the paper's international sites): the cells of the study area
 plus the ring of cells whose boundary distance to it is <= D, D the smallest whole km at which the usable cells
 (study area + ring cells with < water_max WorldCover-2020 water) reach `train_cells` (~400 patches in the
 paper). Land cover is looked up only for cells that can still be selected and cached in plan/landcover.csv.
 A study area of more than `train_cells` cells is trained on all of its cells (logged with the cost).
-Cells of the paper pipeline can be imported instead (`import_cells`), in the pipeline's row order, which
-defines the training / validation split and so the reproduction of the paper's models.
+Existing cells can be imported instead (`import_cells`); their row order defines the training / validation split.
 """
 import json
 import locale
@@ -261,14 +260,6 @@ def _cell_m(grid):
     return float(grid["res"]) * int(grid["cell_px"])
 
 
-def cell_box(grid, col, row):
-    """Footprint (shapely box, grid CRS) of cell (col, row); col / row may be negative."""
-    m = _cell_m(grid)
-    x = grid["x0"] + col * m
-    y = grid["y1"] - row * m
-    return shapely.box(x, y - m, x + m, y)
-
-
 def cell_name(x0, y1):
     """Cell name from its upper-left corner, e.g. x584670y550110."""
     return f"x{round(x0)}y{round(y1)}"
@@ -456,8 +447,7 @@ def plan_cells(project, landcover=None):
 
 # ================================================================================================ import
 def import_cells(project, rows, role_map={"test": "aoi"}, default_role="ring"):
-    """cells.csv from a table of existing 256 x 256 rasters `<src_dir>/<cell>_<layer>.tif`, e.g. the paper
-    pipeline's plans\\rows_<site>.csv (columns piece, tile, kind, min_dist_m, epsg, tile_x0, tile_y1,
+    """cells.csv from a table of existing 256 x 256 rasters `<src_dir>/<cell>_<layer>.tif` (columns piece, tile, kind, min_dist_m, epsg, tile_x0, tile_y1,
     padded, x_src, lab_src). Row order is kept (it defines the training split). role = role_map[kind], else
     default_role. plan/grid.json gets the common grid of the cells, or "cells_on_common_grid": false. On a common
     grid, the project's study area (aoi.geojson) must cover a pixel of the imported aoi cells (their maps).

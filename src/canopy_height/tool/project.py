@@ -34,8 +34,8 @@ STAGES = ["plan", "download", "stack", "train", "predict", "report"]
 MODELS = ["rf-sls", "unet-sls", "kg-unet1", "kg-unet2"]
 MODEL_NAMES = {"rf-sls": "RF-SLS", "unet-sls": "UNet-SLS", "kg-unet1": "KG-UNet1", "kg-unet2": "KG-UNet2"}
 
-# Layers as they are named in raster files (the same names as the paper's data pipeline, so rasters of that
-# pipeline can be imported unchanged) and the published products behind the benchmark layers.
+# Layers as they are named in raster files (the same names as the paper's data) and the published products
+# behind the benchmark layers.
 X_LAYERS = ["Embedding", "DEM", "S1", "S2"]          # -> 76-band model input (64 + 1 + 2 + 9)
 LABEL_LAYER = "GEDI"                                 # gridded GEDI rh95 (training labels)
 BENCHMARKS = {                                       # product -> file layer (GMTCH is derived from Tolan_1m)
@@ -48,7 +48,7 @@ BENCHMARKS = {                                       # product -> file layer (GM
 # needs the seasonal composites. Layers a representation does not use are not downloaded (their channels of the
 # 76-band annual raster stay 0 = no data, which the model does not read). DEM always comes with the GEDI request.
 # Names: A = annual Sentinel-1/2 + DEM, E = Earth embedding, T = four seasonal (temporal) Sentinel-1/2 composites
-# + DEM; AE and A were called IE and I before, and those names are still accepted (canonical_input).
+# + DEM; the aliases IE and I are accepted for AE and A (canonical_input).
 INPUTS = _Inputs({
     "AE": dict(checkpoint="UNet-ALS.pth", annual=["Embedding", "DEM", "S1", "S2"], seasonal=False,
                label="Earth embedding + annual Sentinel-1/2 + DEM"),
@@ -64,9 +64,9 @@ INPUTS = _Inputs({
 
 
 def canonical_input(name):
-    """Current name of an input representation: the earlier names IE and I -> AE and A (channels.ALIASES)."""
+    """Current name of an input representation: the aliases IE and I -> AE and A (channels.ALIASES)."""
     return _canonical(name)
-# seasonal composites as in the paper's seasonal pipeline: season k = DJF, MAM, JJA, SON of the
+# seasonal composites as in the paper: season k = DJF, MAM, JJA, SON of the
 # window [Dec (year - 1), Dec year); S1 (VV, VH) in dB, S2 (B2 ... B12) as 0-1 reflectance, float64 rasters
 SEASONAL_LAYERS = [f"S1_asc_{k}" for k in range(4)] + [f"S2_{k}" for k in range(4)]
 
@@ -103,7 +103,7 @@ DEFAULTS = dict(
     workers=3,                      # parallel Earth Engine requests
     s1_method="local",              # Sentinel-1 composites: "local" = raw scenes from Earth Engine, the gee_s1_ard
                                     # chain in numpy (~1/10 of the EECU, ~1e-5 dB from the paper's rasters);
-                                    # "gee" = the chain on Earth Engine (the paper's pipeline, bit for bit)
+                                    # "gee" = the chain on Earth Engine (as for the paper's data, bit for bit)
     als=None,                       # optional: list of ALS canopy-height rasters for an accuracy check
     als_resolution=1.0,             # resolution of those rasters (1 m -> 10 m p90; 10 m on the grid -> used as is)
     als_scale=1.0,                  # factor to metres (0.01 for canopy-height rasters stored in cm)
@@ -146,7 +146,7 @@ class Project:
             raise ValueError(f"unknown settings in project.yaml: {sorted(unknown)}")
         self.cfg = copy.deepcopy(DEFAULTS)
         self.cfg.update(user)
-        if self.cfg.get("input") in INPUTS:            # earlier names (IE, I) -> current ones (AE, A)
+        if self.cfg.get("input") in INPUTS:            # aliases IE, I -> AE, A
             self.cfg["input"] = canonical_input(self.cfg["input"])
         self._log = None
 
@@ -336,8 +336,8 @@ def validate(cfg):
         raise ValueError(f"train_cells {cfg.get('train_cells')!r} must be a positive integer")
     if cfg.get("s1_method", "local") not in ("local", "gee"):
         raise ValueError(f"s1_method {cfg.get('s1_method')!r}: 'local' (raw Sentinel-1 scenes from Earth Engine, "
-                         f"processed on this computer; default) or 'gee' (processed on Earth Engine, the paper's "
-                         f"pipeline bit for bit, about 10 times the Earth Engine quota)")
+                         f"processed on this computer; default) or 'gee' (processed on Earth Engine, as for the "
+                         f"paper's data, bit for bit, about 10 times the Earth Engine quota)")
     w = cfg.get("gedi_window")
     if not (isinstance(w, (list, tuple)) and len(w) == 2 and str(w[0]) < str(w[1])):
         raise ValueError(f"gedi_window {w!r} must be [start, end] dates, e.g. ['2019-01-01', '2021-12-31']")

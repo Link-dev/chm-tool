@@ -79,13 +79,13 @@ TRAIN_CELLS_NOTE = (
     "small numbers (tens of cells) give unreliable models. Used by the Plan stage.")
 S1_METHOD_LABELS = {
     "local": "On this computer from the raw scenes (default; about 10-50 EECU-seconds per cell)",
-    "gee": "On Earth Engine, as the paper's pipeline (bit for bit; about 150-500 EECU-seconds per cell or more)"}
+    "gee": "On Earth Engine, as for the paper's data (bit for bit; about 150-500 EECU-seconds per cell or more)"}
 S1_METHOD_NOTE = (
     "Sentinel-1 (inputs AE, A, T, TE) is filtered for speckle and flattened for terrain by the gee_s1_ard chain. "
     "*On this computer*: Earth Engine only serves the raw scenes (about 50 MB per cell pass through, not stored) "
     "and the chain runs here, about a tenth of the Earth Engine compute; the result differs from the paper's by "
-    "about 1e-5 dB (under 0.01 % of the model's Sentinel-1 values move by one 0.01 dB step). *On Earth Engine*: the "
-    "paper's pipeline unchanged. Cells where the local way does not apply (a CRS other than a WGS84 UTM zone) take "
+    "about 1e-5 dB (under 0.01 % of the model's Sentinel-1 values move by one 0.01 dB step). *On Earth Engine*: as "
+    "for the paper's data. Cells where the local way does not apply (a CRS other than a WGS84 UTM zone) take "
     "the Earth Engine way. Existing downloads are kept when this is changed.")
 YEAR_NOTE = (
     f"{YEARS[0]}-{YEARS[-1]} only: Sentinel-2 surface reflectance (L2A) covers the globe only from December 2018 "
@@ -121,8 +121,7 @@ def _help_inputs():
     return "\n".join(["| input | model input | UNet-ALS checkpoint | downloaded layers (+ GEDI) |",
                       "|---|---|---|---|", *rows, "",
                       "Letters: **A** = annual Sentinel-1/2 + DEM, **E** = Earth embedding, **T** = four seasonal "
-                      "(temporal) Sentinel-1/2 composites + DEM. AE and A were called IE and I in earlier versions; "
-                      "those names are still accepted."])
+                      "(temporal) Sentinel-1/2 composites + DEM."])
 
 
 HELP = f"""

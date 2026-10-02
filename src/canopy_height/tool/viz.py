@@ -172,21 +172,6 @@ def colormap_hex(n=11, cmap=CMAP):
     return [to_hex(cm(i / (n - 1))) for i in range(n)]
 
 
-def save_quicklook(a, path, vmax, title="", cmap=CMAP, dpi=120):
-    """Quick-look PNG of a canopy-height array on the 0..vmax scale with a colour bar (no pyplot state, so it is
-    safe in the app's threads)."""
-    from matplotlib.figure import Figure
-    h, w = a.shape
-    fig = Figure(figsize=(5.2, 5.2 * h / max(w, 1) + 0.4), dpi=dpi)
-    ax = fig.subplots()
-    im = ax.imshow(np.ma.masked_invalid(a), cmap=cmap, vmin=0, vmax=vmax, interpolation="nearest")
-    ax.set_title(title, fontsize=10)
-    ax.set_axis_off()
-    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.03, label="Canopy height (m)")
-    fig.savefig(path, bbox_inches="tight")
-    return Path(path)
-
-
 # ---------------------------------------------------------------------------------------------- vectors
 def aoi_geometry(src):
     """Study area of a project (aoi.geojson path or GeoJSON dict) as one shapely geometry in EPSG:4326."""

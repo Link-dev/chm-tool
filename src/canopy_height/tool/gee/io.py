@@ -1,4 +1,4 @@
-"""Earth Engine download on an exact grid (the paper pipeline's gee_io.py without its config module).
+"""Earth Engine download on an exact grid.
 
 getDownloadURL chunks with crs + crs_transform + dimensions, so the pixels land on the analysis grid and nothing is
 resampled after the download; the chunks are stitched into the full raster ('mosaic'), a chunk that hits the memory

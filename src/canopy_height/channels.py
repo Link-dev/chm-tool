@@ -31,8 +31,8 @@ assert len(ANNUAL_BANDS) == 76 and len(SEASONAL_BANDS) == 44
 #   E   embedding (64)
 #   T   DEM + four-season Sentinel-1/2 (45)
 #   TE  embedding + DEM + four-season Sentinel-1/2 (109)
-# AE and A were called IE and I before; those names are still accepted (ALIASES), e.g. in checkpoints, RF
-# metadata and project files written earlier, and are translated to the current ones by canonical().
+# The aliases IE and I (used in the paper's checkpoints and RF metadata) are accepted for AE and A (ALIASES) and
+# translated by canonical().
 DESCRIPTIONS = {
     "AE": "Earth embedding + annual Sentinel-1/2 + DEM",
     "A": "annual Sentinel-1/2 + DEM",
@@ -44,7 +44,7 @@ ALIASES = {"IE": "AE", "I": "A"}
 
 
 class _Inputs(dict):
-    """dict of the input representations that also finds them by their earlier names (ALIASES); iterating lists
+    """dict of the input representations that also finds them by their aliases (ALIASES); iterating lists
     the current names only."""
 
     def __missing__(self, key):
@@ -74,7 +74,7 @@ NAMES = list(INPUTS) + list(ALIASES)      # every accepted name (command-line ch
 
 
 def canonical(name):
-    """Current name of an input representation (earlier names -> current ones); None stays None."""
+    """Current name of an input representation (aliases IE, I -> AE, A); None stays None."""
     if name is None:
         return None
     name = str(name)
@@ -86,11 +86,6 @@ def canonical(name):
 
 def needs_seasonal(input_name):
     return any(r == "seasonal" for r, _, _ in INPUTS[input_name]["parts"])
-
-
-def band_names(input_name):
-    names = {"annual": ANNUAL_BANDS, "seasonal": SEASONAL_BANDS}
-    return [n for r, a, b in INPUTS[input_name]["parts"] for n in names[r][a:b]]
 
 
 def assemble(input_name, annual, seasonal=None):

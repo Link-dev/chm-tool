@@ -114,13 +114,6 @@ def cmd_evaluate(a):
     print(json.dumps(res, indent=1))
 
 
-def cmd_convert(a):
-    from .models import convert_legacy
-    cfg = convert_legacy(a.src, a.out, a.input, None if a.zero_restore is None else a.zero_restore == "on",
-                         a.package_stats, name=a.name)
-    print(json.dumps(cfg))
-
-
 def cmd_info(a):
     from .models import describe
     print(describe(a.model))
@@ -198,14 +191,6 @@ def main(argv=None):
     p.add_argument("--tile", type=int, default=256, help="chip size for per-chip medians (GeoTIFF inputs)")
     p.add_argument("--no-cap80", action="store_true")
     p.set_defaults(func=cmd_evaluate)
-
-    p = sub.add_parser("convert", help="wrap an original state dict into a package checkpoint")
-    p.add_argument("src"); p.add_argument("out")
-    p.add_argument("--input", required=True, choices=channels.NAMES)
-    p.add_argument("--zero-restore", choices=onoff)
-    p.add_argument("--package-stats", action="store_true")
-    p.add_argument("--name")
-    p.set_defaults(func=cmd_convert)
 
     p = sub.add_parser("info", help="show the configuration stored in a checkpoint")
     p.add_argument("model")

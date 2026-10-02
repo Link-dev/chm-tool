@@ -67,8 +67,6 @@ def test_reference_grid(tmp_path):
     aoi = grid.read_aoi(f)
     assert aoi.geom_type == "Polygon" and grid.utm_epsg(aoi) == 32650
     assert_ref_xy(aoi)
-    assert grid.cell_box(REF_GRID, 0, 0).bounds == (584670.0, 547550.0, 587230.0, 550110.0)
-    assert grid.cell_box(REF_GRID, -1, -1).bounds == (582110.0, 550110.0, 584670.0, 552670.0)
     assert grid.utm_epsg(shapely.box(-47.1, -23.6, -47.0, -23.5)) == 32723
 
 

@@ -113,8 +113,8 @@ def ee_median(stack):
     """ImageCollection.median() of a stack [N, ...] (NaN = masked) as Earth Engine computes it: the exact median of
     up to MAX_RAW valid values; above that a histogram of power-of-2 buckets (aligned to multiples of the width, the
     smallest width that needs at most MAX_BUCKETS buckets) that keeps each bucket's mean, and the median of the values
-    replaced by their bucket means (even count: mean of the two middle ones). Measured on 2026-09-29 (33 value sets
-    of 64-300 values: all equal to Earth Engine's result); order-independent."""
+    replaced by their bucket means (even count: mean of the two middle ones). Checked on 33 value sets of 64-300
+    values (all equal to Earth Engine's result); order-independent."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)
         out = np.nanmedian(stack, axis=0)

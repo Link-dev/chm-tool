@@ -30,7 +30,7 @@ from .project import BENCHMARKS, INPUTS, MODEL_NAMES, MODELS, STAGES, Project
 CHECKPOINT_SHA256 = {
     "UNet-ALS.pth": "b86e3b93e6b25d31326a67da243f098d959067fdbe3cdda731a242370a554a81",
     "UNet-E-ALS.pth": "f4796f364f30026a603fc2ac59023cdfc136f1018ae9cb966c454a4b32e7c97a",
-    "UNet-A-ALS.pth": "41f0897b704f71581e38159d9716d0d52706bbbedefbc3007e48fad376a0ba1e",   # formerly UNet-S-ALS.pth
+    "UNet-A-ALS.pth": "41f0897b704f71581e38159d9716d0d52706bbbedefbc3007e48fad376a0ba1e",
     "UNet-T-ALS.pth": "61fecd223dc46b8aed38d4df67fe8fddf09a19d188419e0e7138d401f23ba0fa",
     "UNet-TE-ALS.pth": "b51ba6fc6861b0dc51feb4c680ec2e1fb27543c6d67dee9344372d774f6f9b86",
 }
@@ -98,7 +98,7 @@ def fetch_weights(inp, source, dest="/content/chm_weights", log=print):
     """Put the UNet-ALS checkpoint of input representation `inp` into dest/source/ and point $CHM_WEIGHTS at dest.
     `source`: a folder holding the checkpoint (directly or in source/, e.g. the release's weights/ folder copied to
     Google Drive) or a URL prefix the file name is appended to. The file is checked against its sha256."""
-    name = INPUTS[inp]["checkpoint"]                    # INPUTS also finds the earlier names IE, I
+    name = INPUTS[inp]["checkpoint"]                    # INPUTS also finds the aliases IE, I
     out = Path(dest) / "source" / name
     want = CHECKPOINT_SHA256[name]
     if not (out.exists() and sha256(out) == want):

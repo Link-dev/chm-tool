@@ -237,7 +237,7 @@ def _clean_partial(project, model):
 def _run_input(res):
     """Input representation a finished run was trained with (result.json of rf.train_rf / train.train)."""
     inp = res.get("input") or (res.get("model") or {}).get("input") or (res.get("recipe") or {}).get("input")
-    return canonical_input(inp) if inp else inp     # earlier names IE, I -> AE, A
+    return canonical_input(inp) if inp else inp     # aliases IE, I -> AE, A
 
 
 def _file_id(path):

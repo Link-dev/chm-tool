@@ -25,6 +25,13 @@ EPSG, X0, Y1 = 32650, 584670.0, 550110.0          # grid anchor of a pipeline ce
 PNG = b"\x89PNG\r\n\x1a\n"
 
 
+def _png(path):
+    """A small PNG file (stand-in for a report quick-look)."""
+    from matplotlib.figure import Figure
+    Figure(figsize=(1, 1)).savefig(path)
+    return Path(path)
+
+
 @pytest.fixture(autouse=True)
 def weights(tmp_path_factory, monkeypatch):
     """Every UNet-ALS checkpoint present ($CHM_WEIGHTS/source/, empty files: the page only checks that they
@@ -142,8 +149,6 @@ def test_cells_area_quicklook(tmp_path):
     assert viz.cell_counts(pd.read_csv(tmp_path / "cells.csv")) == {"aoi": 1, "ring": 1, "dropped (water)": 1}
     assert abs(viz.area_km2(box(0, 0, 1, 1)) - 12308) < 30
     assert abs(viz.area_km2(_aoi_lonlat()) - 1.9 ** 2) < 0.05
-    q = viz.save_quicklook(np.random.default_rng(1).uniform(0, 30, (50, 80)), tmp_path / "q.png", 30, "test")
-    assert q.read_bytes()[:8] == PNG
 
 
 def test_folium_maps(tmp_path):
@@ -190,7 +195,7 @@ def _fake_project(root):
     (root / "report").mkdir()
     pd.DataFrame(dict(product=["UNet-SLS", "HRCH"], reference=["GEDI", "GEDI"], rmse=[5.1, 7.3], n=[300, 300])) \
         .to_csv(root / "report" / "metrics.csv", index=False)
-    viz.save_quicklook(m, root / "report" / "UNet-SLS.png", 50, "UNet-SLS")
+    _png(root / "report" / "UNet-SLS.png")
     (root / "logs").mkdir()
     (root / "logs" / "run.log").write_text("".join(f"2026-09-27 10:0{i % 10}:00 line {i}\n" for i in range(100)),
                                            encoding="utf-8")
@@ -377,7 +382,7 @@ def test_report_summary_and_model_inputs(tmp_path):
     root = _fake_project(tmp_path / "fake")
     p = Project(root)
     rep = root / "report"
-    extra = viz.save_quicklook(np.ones((8, 8)), rep / "old.png", 10)
+    extra = _png(rep / "old.png")
     assert app.quicklook_files(rep) == sorted([extra, rep / "UNet-SLS.png"])           # no summary: every PNG
     (rep / "summary.json").write_text(json.dumps(dict(quicklooks=["UNet-SLS.png", "gone.png", "UNet-SLS.png"],
                                                       notes=["a note"], stale_models={"KG-UNet1": "stack rebuilt"})))
@@ -673,7 +678,7 @@ def test_settings_refused_without_the_checkpoint(tmp_path, weights):
 def test_results_report_summary_notes_and_quicklooks(tmp_path):
     root = _fake_project(tmp_path / "fake")
     rep = root / "report"
-    viz.save_quicklook(np.ones((8, 8)), rep / "stale.png", 10)                 # not listed in summary.json
+    _png(rep / "stale.png")                                                  # not listed in summary.json
     (rep / "summary.json").write_text(json.dumps(dict(
         input="AE", quicklooks=["UNet-SLS.png"], stale_models={"KG-UNet2": "trained on an older stack"},
         notes=["study_area: 12 GEDI labels > 80 m left out"])), encoding="utf-8")
