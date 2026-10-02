@@ -21,11 +21,11 @@ GFCH (UMD, [Potapov et al. 2021](https://doi.org/10.1016/j.rse.2020.112165)), HR
 
 ## Map with the paper's models
 
-Choose one of six regions: **CONUS** (UNet-ALS) or the training region of an international site, **EBR** Entlebuch
-(Switzerland), **MRF** Mount Richmond (New Zealand), **MUR** Middle Usumacinta (Mexico), **SER** Sepilok and Danum
-(Malaysia) or **SPC** São Paulo (Brazil), each with its UNet-SLS, KG-UNet1 and KG-UNet2. Draw the study area inside
-the region (at most 200 cells of 2.56 km); outside the region the maps stay empty. Only the study area's inputs are
-downloaded, so a small study area takes minutes.
+Choose one of six regions: **CONUS** (United States, UNet-ALS) or the training region of an international site,
+**EBR** (Switzerland), **MRF** (New Zealand), **MUR** (Mexico), **SER** (Malaysia) or **SPC** (Brazil), each with its
+UNet-SLS, KG-UNet1 and KG-UNet2, and UNet-ALS. Draw the study area inside the region (at most 200 cells of 2.56 km)
+or upload it as a file; if nothing is drawn, the region's default study area is mapped. Outside the region the maps
+stay empty. Only the study area's inputs are downloaded, so a small study area takes minutes.
 
 ## Train models for your study area
 

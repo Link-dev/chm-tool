@@ -1,13 +1,18 @@
-"""canopy_height.tool.colab: session settings, weights check, study-area box, the local stack copy."""
+"""canopy_height.tool.colab: session settings, weights check, the study-area map, the local stack copy."""
+import sys
+import types
+
 import numpy as np
 import pytest
 
 from canopy_height.tool import colab
 from canopy_height.tool.project import Project
 
+shapely = pytest.importorskip("shapely")
+
 
 def _project(tmp_path):
-    p = Project.create(tmp_path / "proj", colab.aoi_from_bbox(117.70, 4.90, 117.72, 4.92), year=2020)
+    p = Project.create(tmp_path / "proj", shapely.box(117.70, 4.90, 117.72, 4.92), year=2020)
     d = p.path("stacks")
     d.mkdir()
     np.save(d / "train_part001.npy", np.zeros((2, 76, 4, 4), np.uint16))
@@ -16,10 +21,61 @@ def _project(tmp_path):
     return p
 
 
-def test_bbox():
-    assert colab.aoi_from_bbox(1, 2, 3, 4).bounds == (1, 2, 3, 4)
-    with pytest.raises(ValueError):
-        colab.aoi_from_bbox(3, 2, 1, 4)
+def test_map_view():
+    (lat, lon), z = colab.map_view((173.0, -41.6, 173.9, -41.0))          # a site region, about 75 x 65 km
+    assert (lat, lon) == pytest.approx((-41.3, 173.45)) and z == 9
+    assert colab.map_view((-72.22, 42.50, -72.13, 42.57))[1] == 12          # 7 x 8 km
+    assert colab.map_view((-125, 24, -66, 50))[1] == 4                      # the contiguous US
+
+
+class _Widget:
+    def __init__(self, *a, **k):
+        self.kw = k
+
+
+class _Map(_Widget):
+    def __init__(self, **k):
+        super().__init__(**k)
+        self.layers = ()
+
+    def add(self, layer):
+        self.layers += (layer,)
+
+    def remove(self, layer):
+        self.layers = tuple(x for x in self.layers if x is not layer)
+
+
+class _DrawControl(_Widget):
+    def on_draw(self, fn):
+        self.fn = fn
+
+
+def _fake_ipyleaflet(monkeypatch):
+    L = types.SimpleNamespace(Map=_Map, TileLayer=_Widget, GeoJSON=_Widget, DrawControl=_DrawControl,
+                              SearchControl=_Widget)
+    monkeypatch.setitem(sys.modules, "ipyleaflet", L)
+
+
+def test_drawer_uses_the_default_area_until_a_shape_is_drawn(monkeypatch):
+    _fake_ipyleaflet(monkeypatch)
+    default, region = shapely.box(173.44, -41.29, 173.53, -41.22), shapely.box(173.0, -41.6, 173.9, -41.0)
+    d = colab.AoiDrawer(default, outline=region, bounds=region.bounds)
+    assert d.map.kw["zoom"] == 9 and d.aoi is default and d._default_layer in d.map.layers
+    dc = next(x for x in d.map.layers if isinstance(x, _DrawControl))
+    drawn = shapely.box(173.5, -41.4, 173.6, -41.3)
+    dc.fn(dc, action="created", geo_json={"geometry": shapely.geometry.mapping(drawn)})
+    assert d.aoi.equals(drawn) and d._default_layer not in d.map.layers          # the default area is hidden
+    dc.fn(dc, action="deleted", geo_json={"geometry": shapely.geometry.mapping(shapely.box(0, 0, 1, 1))})
+    assert d.aoi.equals(drawn)                                                   # another shape was deleted
+    dc.fn(dc, action="deleted", geo_json={"geometry": shapely.geometry.mapping(drawn)})
+    assert d.aoi is default and d._default_layer in d.map.layers
+
+
+def test_draw_map_falls_back_to_the_default_area(monkeypatch):
+    monkeypatch.setitem(sys.modules, "ipyleaflet", None)                         # import fails
+    notes = []
+    assert colab.draw_map(shapely.box(0, 0, 1, 1), log=notes.append) is None
+    assert "default study area" in notes[0]
 
 
 def test_settings_low_ram_and_gpu():

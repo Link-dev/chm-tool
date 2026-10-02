@@ -15,9 +15,12 @@ from canopy_height.tool.gee import io as gee_io  # noqa: E402
 def test_regions_models_and_default_areas():
     assert list(pretrained.REGIONS) == ["CONUS", "EBR", "MRF", "MUR", "SER", "SPC"]
     assert pretrained.model_files("CONUS") == {"UNet-ALS": "source/UNet-ALS.pth"}
-    assert pretrained.model_files("SER") == {m: f"SER/{m}.pth" for m in ("UNet-SLS", "KG-UNet1", "KG-UNet2")}
+    assert pretrained.model_files("SER") == {"UNet-ALS": "source/UNet-ALS.pth",
+                                             **{m: f"SER/{m}.pth" for m in ("UNet-SLS", "KG-UNet1", "KG-UNet2")}}
+    assert pretrained.label("MRF") == "MRF (New Zealand)" and pretrained.label("CONUS") == "CONUS (United States)"
     for r in pretrained.REGIONS:
         assert all(rel in weights.SHA256 for rel in pretrained.model_files(r).values())
+        assert shapely.box(*pretrained.view_bounds(r)).contains(pretrained.default_aoi(r))
         if r != "CONUS":
             assert pretrained.region_geometry(r).contains(pretrained.default_aoi(r))
     w, s, e, n = pretrained.default_aoi("CONUS").bounds

@@ -46,14 +46,9 @@ YEAR = 2020                         #@param {type:"integer"}
 #@markdown Training region: the study area and the surrounding cells of 2.56 km up to this many cells (the paper
 #@markdown used about 400; fewer download and train faster).
 TRAIN_CELLS = 200                   #@param {type:"integer"}
-#@markdown Study area: a longitude / latitude box, a shape drawn on a map (cell 4), a file on Google Drive, or an
-#@markdown uploaded file (zipped shapefile, GeoJSON, GeoPackage, KML).
-AOI_MODE = "box"                    #@param ["box", "draw", "drive file", "upload"]
-WEST = 173.44                       #@param {type:"number"}
-SOUTH = -41.29                      #@param {type:"number"}
-EAST = 173.53                       #@param {type:"number"}
-NORTH = -41.22                      #@param {type:"number"}
-AOI_FILE = "/content/drive/MyDrive/chm-tool/study_area.geojson"                #@param {type:"string"}
+#@markdown Study area: draw it on the map of cell 4 (nothing drawn = a default study area of about 7 x 7 km in New
+#@markdown Zealand) or upload a file (zipped shapefile, GeoJSON, GeoPackage, KML).
+STUDY_AREA = "draw on the map"      #@param ["draw on the map", "upload a file"]
 #@markdown **Advanced** (the defaults are fine): the input of the models, parallel Earth Engine requests, Sentinel-1
 #@markdown processing ("local" uses far less Earth Engine quota), the last stage to run, and where the project,
 #@markdown code and weights are.
@@ -117,31 +112,22 @@ print(f"Earth Engine project {GEE_PROJECT}: ok")
 """)
 
 code(r"""
-#@title 4. Study area
+#@title 4. Study area (red)
 from pathlib import Path
+from canopy_height.tool import pretrained
 ROOT = Path(DRIVE_DIR) / PROJECT_NAME
-drawer = None
+AOI, drawer = pretrained.default_aoi("MRF"), None          # the default study area (New Zealand)
 if (ROOT / "project.yaml").exists():
-    print(f"{ROOT} already holds a project: it is opened in cell 5 (the study area below is not used)")
-elif AOI_MODE == "box":
-    AOI = colab.aoi_from_bbox(WEST, SOUTH, EAST, NORTH)
-    print("study area: box", AOI.bounds)
-elif AOI_MODE == "draw":
-    drawer = colab.AoiDrawer(center=((SOUTH + NORTH) / 2, (WEST + EAST) / 2), zoom=11)
-    print("Draw a rectangle or polygon (tools on the left), then run cell 5.")
-    display(drawer)
-elif AOI_MODE == "drive file":
-    AOI = AOI_FILE
-    if not Path(AOI).exists():
-        raise FileNotFoundError(f"{AOI} not found (AOI_FILE in cell 1)")
-    print("study area file:", AOI)
+    print(f"{ROOT} already holds a project: it is opened in cell 5 with its own study area")
+elif STUDY_AREA == "upload a file":
+    AOI = colab.upload_aoi()
+    print("study area:", Path(AOI).name)
 else:
-    from google.colab import files
-    up = files.upload()
-    name = next(iter(up))
-    AOI = str(Path("/content") / name)
-    Path(AOI).write_bytes(up[name])
-    print("study area file:", AOI)
+    drawer = colab.draw_map(AOI)
+    if drawer is not None:
+        print("Draw the study area (rectangle or polygon tools on the left; the last shape drawn counts), then run "
+              "cell 5. If nothing is drawn, cell 5 uses the default study area (red).")
+        display(drawer)
 """)
 
 code(r"""
@@ -151,9 +137,8 @@ if (ROOT / "project.yaml").exists():
     p = Project(ROOT)
 else:
     if drawer is not None:
-        if drawer.geometry is None:
-            raise ValueError("no shape drawn yet: draw the study area on the map of cell 4")
-        AOI = drawer.geometry
+        AOI = drawer.aoi
+        print("study area:", "the shape drawn on the map" if drawer.drawn is not None else "the default study area")
     p = Project.create(ROOT, AOI, name=PROJECT_NAME, input=INPUT, year=YEAR, gee_project=GEE_PROJECT,
                        train_cells=TRAIN_CELLS, workers=WORKERS, s1_method=S1_METHOD, **SESSION_SETTINGS)
 # settings of cell 1 that may be changed later (the tool rebuilds what they affect)

@@ -22,11 +22,11 @@ embeddings for canopy height prediction*, without training. Choose the region yo
 
 | Region | Models |
 |---|---|
-| **CONUS** (contiguous United States) | UNet-ALS, trained on USGS 3DEP airborne lidar |
-| **EBR** Entlebuch (Switzerland), **MRF** Mount Richmond (New Zealand), **MUR** Middle Usumacinta (Mexico), **SER** Sepilok and Danum (Malaysia), **SPC** São Paulo (Brazil) | the site's UNet-SLS, KG-UNet1 and KG-UNet2, trained on local GEDI labels |
+| **CONUS** (United States) | UNet-ALS, trained on USGS 3DEP airborne lidar |
+| **EBR** (Switzerland), **MRF** (New Zealand), **MUR** (Mexico), **SER** (Malaysia), **SPC** (Brazil) | the site's UNet-SLS, KG-UNet1 and KG-UNet2, trained on local GEDI labels, and UNet-ALS |
 
-Draw the study area inside the region (cell 4 shows it on a map); outside the region the maps stay empty. Each
-region has a default study area of about 7 x 7 km that runs as it is. For other places, train models with
+Draw the study area inside the region on the map of cell 4; outside the region the maps stay empty. If nothing is
+drawn, the region's default study area of about 7 x 7 km is mapped. For other places, train models with
 [chm_finetune.ipynb](https://colab.research.google.com/github/Link-dev/chm-tool/blob/main/notebooks/chm_finetune.ipynb).
 Documentation: [github.com/Link-dev/chm-tool](https://github.com/Link-dev/chm-tool).
 
@@ -37,17 +37,12 @@ Set everything in cell 1 and run the cells in order.
 
 code(r"""
 #@title 1. Settings
-REGION = "MRF: Mount Richmond Forest Park, New Zealand"  #@param ["CONUS: Contiguous United States", "EBR: Entlebuch Biosphere Reserve, Switzerland", "MRF: Mount Richmond Forest Park, New Zealand", "MUR: Middle Usumacinta, Mexico", "SER: Sepilok and Danum Valley, Malaysia", "SPC: Sao Paulo, Brazil"]
+REGION = "MRF (New Zealand)"        #@param ["CONUS (United States)", "EBR (Switzerland)", "MRF (New Zealand)", "MUR (Mexico)", "SER (Malaysia)", "SPC (Brazil)"]
 GEE_PROJECT = ""                    #@param {type:"string"}
 PROJECT_NAME = "my_map"             #@param {type:"string"}
-#@markdown Study area: the region's default area, a longitude / latitude box, a shape drawn on a map (cell 4), a file
-#@markdown on Google Drive, or an uploaded file (zipped shapefile, GeoJSON, GeoPackage, KML); at most 200 cells of 2.56 km.
-AOI_MODE = "region default"         #@param ["region default", "box", "draw", "drive file", "upload"]
-WEST = 173.44                       #@param {type:"number"}
-SOUTH = -41.29                      #@param {type:"number"}
-EAST = 173.53                       #@param {type:"number"}
-NORTH = -41.22                      #@param {type:"number"}
-AOI_FILE = "/content/drive/MyDrive/chm-tool/study_area.geojson"                #@param {type:"string"}
+#@markdown Study area: draw it on the map of cell 4 (nothing drawn = the region's default study area) or upload a file
+#@markdown (zipped shapefile, GeoJSON, GeoPackage, KML); at most 200 cells of 2.56 km.
+STUDY_AREA = "draw on the map"      #@param ["draw on the map", "upload a file"]
 #@markdown Year of the inputs (0 = the year the region's models were trained with).
 YEAR = 0                            #@param {type:"integer"}
 #@markdown Also map the published products GMTCH, GFCH and HRCH for comparison (a little more to download).
@@ -60,8 +55,8 @@ DRIVE_DIR = "/content/drive/MyDrive/chm-tool"                                  #
 CODE_SOURCE = "git+https://github.com/Link-dev/chm-tool@main"                  #@param {type:"string"}
 WEIGHTS_SOURCE = "https://huggingface.co/datasets/Link-Dev/canopy-height-data/resolve/main/weights"  #@param {type:"string"}
 
-REGION = REGION.split(":")[0].strip()        # the code before the colon
-print(f"region {REGION}, study area: {AOI_MODE}")
+REGION = REGION.split()[0]                   # the code: CONUS, EBR, MRF, MUR, SER or SPC
+print(f"region {REGION}, study area: {STUDY_AREA}")
 """)
 
 code(r"""
@@ -109,47 +104,32 @@ print(f"Earth Engine project {GEE_PROJECT}: ok")
 code(r"""
 #@title 4. Study area (green: the region, red: the study area)
 from pathlib import Path
-from shapely.geometry import mapping
-drawer = None
 print(pretrained.describe(REGION))
-if AOI_MODE == "region default":
-    AOI = pretrained.default_aoi(REGION)
-elif AOI_MODE == "box":
-    AOI = colab.aoi_from_bbox(WEST, SOUTH, EAST, NORTH)
-elif AOI_MODE == "draw":
-    w, s, e, n = pretrained.default_aoi(REGION).bounds
-    drawer = colab.AoiDrawer(center=((s + n) / 2, (w + e) / 2), zoom=4 if REGION == "CONUS" else 10,
-                             outline=mapping(pretrained.region_geometry(REGION, DRIVE_DIR)))
-    print("Draw a rectangle or polygon inside the green region (tools on the left), then run cell 5.")
-    display(drawer)
-elif AOI_MODE == "drive file":
-    AOI = AOI_FILE
-    if not Path(AOI).exists():
-        raise FileNotFoundError(f"{AOI} not found (AOI_FILE in cell 1)")
-else:
-    from google.colab import files
-    up = files.upload()
-    name = next(iter(up))
-    AOI = str(Path("/content") / name)
-    Path(AOI).write_bytes(up[name])
-if drawer is None:
-    info = pretrained.check(REGION, AOI, YEAR or None, cache_dir=DRIVE_DIR)
-    print(f"study area: {info['cells']} cells of 2.56 km, {info['inside']:.0%} inside the {REGION} region, "
-          f"inputs of {info['year']}")
-    for note in info["notes"]:
-        print("NOTE:", note)
+AOI, drawer = pretrained.default_aoi(REGION), None
+if STUDY_AREA == "upload a file":
+    AOI = colab.upload_aoi()
+    print("study area:", Path(AOI).name)
     display(pretrained.region_map(REGION, AOI, cache_dir=DRIVE_DIR))
+else:
+    drawer = colab.draw_map(AOI, outline=pretrained.region_geometry(REGION, DRIVE_DIR),
+                            bounds=pretrained.view_bounds(REGION))
+    if drawer is None:
+        display(pretrained.region_map(REGION, AOI, cache_dir=DRIVE_DIR))
+    else:
+        print("Draw the study area inside the green region (rectangle or polygon tools on the left; the last shape "
+              "drawn counts), then run cell 5. If nothing is drawn, cell 5 maps the default study area (red).")
+        display(drawer)
 """)
 
 code(r"""
 #@title 5. Map canopy height: download the inputs, then predict (run again to resume)
 if drawer is not None:
-    if drawer.geometry is None:
-        raise ValueError("no shape drawn yet: draw the study area on the map of cell 4")
-    AOI = drawer.geometry
-    info = pretrained.check(REGION, AOI, YEAR or None, cache_dir=DRIVE_DIR)
-    for note in info["notes"]:
-        print("NOTE:", note)
+    AOI = drawer.aoi
+    print("study area:", "the shape drawn on the map" if drawer.drawn is not None else "the default study area")
+info = pretrained.check(REGION, AOI, YEAR or None, cache_dir=DRIVE_DIR)
+print(f"{info['cells']} cells of 2.56 km, {info['inside']:.0%} inside the {REGION} region, inputs of {info['year']}")
+for note in info["notes"]:
+    print("NOTE:", note)
 p = pretrained.open_or_create(Path(DRIVE_DIR) / PROJECT_NAME, REGION, AOI, year=YEAR or None,
                               gee_project=GEE_PROJECT, workers=WORKERS, s1_method=S1_METHOD,
                               benchmarks=["GMTCH", "GFCH", "HRCH"] if BENCHMARKS else [])
@@ -174,9 +154,9 @@ print("maps (GeoTIFF, m):", p.path("maps"))
 md(r"""
 **Notes**
 - The maps are in `maps/` of the project folder on Drive (GeoTIFF, metres, the study area's UTM zone), one per model.
-- The models map canopy height where they were trained: UNet-ALS in the contiguous United States, the site models
-  in their site's training region. Outside the region the maps are empty.
-- A new study area, region or year needs a new `PROJECT_NAME`.
+- The site models map canopy height in their site's training region. UNet-ALS was trained in CONUS; in the site
+  regions its map shows how it transfers. Outside the region the maps are empty.
+- A new study area, region or year needs a new `PROJECT_NAME` (run cell 1 and then cell 5: the drawing is kept).
 """)
 
 nb = dict(nbformat=4, nbformat_minor=5, cells=CELLS,

@@ -7,7 +7,8 @@
   8 GB while loading), so on < 16 GB RAM rf_max_rows is capped at 500 k (above the paper's training sets).
 - fetch_weights(): only the UNet-ALS checkpoint of the chosen input representation (124 MB), from the published
   weights (tool.weights) or a folder (e.g. Google Drive), checked against its sha256, then $CHM_WEIGHTS points at it.
-- aoi_from_bbox() / AoiDrawer: the study area from a longitude / latitude box or drawn on an ipyleaflet map.
+- draw_map() / AoiDrawer / upload_aoi(): the study area drawn on an ipyleaflet map (a default one when nothing is
+  drawn) or uploaded from the user's computer.
 - run(): if the Drive mount goes away mid-run, Drive is mounted again and the run continues (DriveDisconnected
   after repeated failures).
 - run(): the project folder lives on Google Drive (downloads survive a disconnect; run again to resume), but the
@@ -88,49 +89,102 @@ def fetch_weights(inp, source=weights.WEIGHTS_URL, dest="/content/chm_weights", 
 
 
 # ---------------------------------------------------------------------------------------------- study area
-def aoi_from_bbox(west, south, east, north):
-    """Study area as a longitude / latitude box (EPSG:4326)."""
-    from shapely.geometry import box
-    west, south, east, north = map(float, (west, south, east, north))
-    if not (-180 <= west < east <= 180 and -90 <= south < north <= 90):
-        raise ValueError(f"box west={west}, south={south}, east={east}, north={north}: need west < east and "
-                         "south < north in degrees")
-    return box(west, south, east, north)
+MAP_PX = (800, 500)                # width, height of the drawing map (pixels), for its first view
+
+
+def map_view(bounds, size=MAP_PX):
+    """(centre (lat, lon), zoom) of a web map of `size` pixels that shows bounds (west, south, east, north)."""
+    import math
+    w, s, e, n = bounds
+    lat = (s + n) / 2
+    zx = math.log2(size[0] * 360 / 256 / max(e - w, 1e-6))
+    zy = math.log2(size[1] * 360 * math.cos(math.radians(lat)) / 256 / max(n - s, 1e-6))
+    return (lat, (w + e) / 2), max(2, min(15, math.floor(min(zx, zy))))
 
 
 class AoiDrawer:
-    """ipyleaflet map to draw the study area (rectangle or polygon); .geometry is the last shape drawn; `outline`:
-    a GeoJSON geometry shown in green (e.g. the region of chm_pretrained.ipynb). In Colab,
-    google.colab.output.enable_custom_widget_manager() must run first (done here)."""
+    """ipyleaflet map to draw the study area (rectangle or polygon). `default`: the study area when nothing is drawn,
+    shown in red until a shape is drawn; `outline`: a geometry shown in green (the region of chm_pretrained.ipynb);
+    `bounds`: the first view (default: the default study area and its surroundings). .aoi = the last shape drawn,
+    else `default`. In Colab, google.colab.output.enable_custom_widget_manager() must run first (done here)."""
 
-    def __init__(self, center=(20.0, 0.0), zoom=2, height="500px", outline=None):
+    def __init__(self, default, outline=None, bounds=None, height=f"{MAP_PX[1]}px"):
         import ipyleaflet as L
+        from shapely.geometry import mapping
         if in_colab():
             from google.colab import output
             output.enable_custom_widget_manager()
-        self.geometry = None
+        self.default, self.drawn = default, None
+        if bounds is None:
+            w, s, e, n = default.bounds
+            bounds = (w - (e - w), s - (n - s), e + (e - w), n + (n - s))
+        center, zoom = map_view(bounds)
         self.map = L.Map(center=center, zoom=zoom, scroll_wheel_zoom=True, layout={"height": height})
         self.map.add(L.TileLayer(url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/"
                                      "tile/{z}/{y}/{x}", name="Satellite", attribution="Esri"))
+        if outline is not None:
+            self.map.add(L.GeoJSON(data=mapping(outline), name="region",
+                                   style={"color": "#2e7d32", "weight": 2, "fillOpacity": 0.1}))
+        self._default_layer = L.GeoJSON(data=mapping(default), name="default study area",
+                                        style={"color": "#e41a1c", "weight": 2, "dashArray": "6", "fillOpacity": 0.05})
+        self.map.add(self._default_layer)
         dc = L.DrawControl(polyline={}, circlemarker={}, marker={}, circle={},
                            rectangle={"shapeOptions": {"color": "#e41a1c"}},
                            polygon={"shapeOptions": {"color": "#e41a1c"}})
-        if outline is not None:
-            self.map.add(L.GeoJSON(data=outline, name="region",
-                                   style={"color": "#2e7d32", "weight": 2, "fillOpacity": 0.1}))
         dc.on_draw(self._drawn)
         self.map.add(dc)
         self.map.add(L.SearchControl(position="topright", url="https://nominatim.openstreetmap.org/search?format=json&q={s}",
                                      zoom=10))
 
+    @property
+    def aoi(self):
+        return self.default if self.drawn is None else self.drawn
+
     def _drawn(self, control, action, geo_json):
+        """created / edited: that shape is the study area (the default one is hidden); deleted: back to the default
+        study area if the deleted shape was the study area."""
         from shapely.geometry import shape
-        if action == "created":
-            self.geometry = shape(geo_json["geometry"])
+        g = shape(geo_json["geometry"])
+        if action in ("created", "edited"):
+            self.drawn = g
+        elif action == "deleted" and self.drawn is not None and g.equals_exact(self.drawn, 1e-9):
+            self.drawn = None
+        shown = self._default_layer in self.map.layers
+        if self.drawn is None and not shown:
+            self.map.add(self._default_layer)
+        elif self.drawn is not None and shown:
+            self.map.remove(self._default_layer)
 
     def _ipython_display_(self):
         from IPython.display import display
         display(self.map)
+
+
+def draw_map(default, outline=None, bounds=None, log=print):
+    """AoiDrawer (see there), or None with a note if the drawing map cannot be made here (then the default study
+    area is used)."""
+    try:
+        return AoiDrawer(default, outline=outline, bounds=bounds)
+    except Exception as e:                                 # ipyleaflet missing, no widget support
+        log(f"NOTE: the drawing map is not available ({type(e).__name__}: {e}); the default study area (red) is "
+            f"used. For another study area, choose 'upload a file' in cell 1.")
+        return None
+
+
+def upload_aoi(folder="/content"):
+    """Study-area file chosen on this computer (Colab upload dialog) -> its path, checked by grid.read_aoi. Several
+    files at once: the parts of a shapefile (the .shp is used); a shapefile can also be uploaded as one .zip."""
+    from google.colab import files
+    from .grid import read_aoi
+    up = files.upload()
+    if not up:
+        raise ValueError("no file uploaded: run the cell again and choose the study-area file")
+    for name, data in up.items():
+        (Path(folder) / name).write_bytes(data)
+    shp = [n for n in up if n.lower().endswith(".shp")]
+    out = str(Path(folder) / (shp[0] if shp else next(iter(up))))
+    read_aoi(out)
+    return out
 
 
 # ---------------------------------------------------------------------------------------------- local stack copy

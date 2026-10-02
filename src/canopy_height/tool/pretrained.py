@@ -2,9 +2,9 @@
 
 Six regions (REGIONS): CONUS, where UNet-ALS was trained (USGS 3DEP airborne lidar across the contiguous United
 States), and the training regions of the five international sites, where their UNet-SLS, KG-UNet1 and KG-UNet2 were
-trained on local GEDI labels. A study area is mapped inside the chosen region only (NaN outside). Only the
-study-area cells are downloaded (input AE: Earth embedding, annual Sentinel-1/2, DEM; no GEDI), at most MAX_CELLS
-cells of 2.56 km.
+trained on local GEDI labels; UNet-ALS maps the site regions too. A study area is mapped inside the chosen region
+only (NaN outside). Only the study-area cells are downloaded (input AE: Earth embedding, annual Sentinel-1/2, DEM;
+no GEDI), at most MAX_CELLS cells of 2.56 km.
 
     p = pretrained.create("projects/danum", "SER", pretrained.default_aoi("SER"), gee_project="my-project")
     pretrained.run(p)            # plan, download, mosaic, weights, maps/<model>.tif
@@ -26,7 +26,8 @@ REGION_FILE = "region.json"      # the chosen region, in the project folder
 CONUS_FILE = "conus.geojson"     # cache of the CONUS outline from Earth Engine
 STATES = "TIGER/2018/States"
 NOT_CONUS = ["AK", "HI", "PR", "VI", "GU", "AS", "MP"]
-CONUS = dict(region="CONUS", name="Contiguous United States", year=2020, models=["UNet-ALS"], weights="source",
+ALS_WEIGHTS = "source/UNet-ALS.pth"   # UNet-ALS (input AE), mapped in every region
+CONUS = dict(region="CONUS", country="United States", year=2020, models=["UNet-ALS"], weights="source",
              default_box=[-72.22, 42.50, -72.13, 42.57])                   # around Harvard Forest, Massachusetts
 
 
@@ -39,21 +40,39 @@ def _sites():
 REGIONS = {"CONUS": CONUS, **_sites()}
 
 
+def label(region):
+    """'MRF (New Zealand)'."""
+    return f"{region} ({REGIONS[region]['country']})"
+
+
 def describe(region):
     r = REGIONS[region]
-    return f"{region}: {r['name']} ({', '.join(r['models'])}, trained with {r['year']} inputs)"
+    if region == "CONUS":
+        return f"{label(region)}: UNet-ALS, trained with {r['year']} inputs"
+    return (f"{label(region)}: {', '.join(r['models'])} (trained here with {r['year']} inputs) and UNet-ALS "
+            f"(trained in CONUS)")
 
 
 def model_files(region):
-    """{model name: path of its weights under weights/ of the published dataset}."""
+    """{model name: path of its weights under weights/ of the published dataset}: UNet-ALS, then the site's models."""
     r = REGIONS[region]
-    return {m: f"{r['weights']}/{m}.pth" for m in r["models"]}
+    return {"UNet-ALS": ALS_WEIGHTS, **{m: f"{r['weights']}/{m}.pth" for m in r["models"] if m != "UNet-ALS"}}
 
 
 def default_aoi(region):
     """A study area of about 3 x 3 cells inside the region (near the site's ALS test area)."""
     import shapely
     return shapely.box(*REGIONS[region]["default_box"])
+
+
+def view_bounds(region):
+    """(west, south, east, north) a map of the region opens on: the whole region of a site; for CONUS the default
+    study area and about 20 km around it."""
+    if region == "CONUS":
+        w, s, e, n = REGIONS[region]["default_box"]
+        return w - 0.25, s - 0.2, e + 0.25, n + 0.2
+    from shapely.geometry import shape
+    return shape(REGIONS[region]["geometry"]).bounds
 
 
 def region_geometry(region, cache_dir=None):
@@ -181,7 +200,7 @@ def run(project, weights_source=weights.WEIGHTS_URL, weights_dir="weights", work
     region = region_of(project)
     t0 = time.time()
     with run_lock(project, f"pretrained {region}"):
-        log(f"== Step 1/4: planning the study area ({describe(region)}) ==")
+        log(f"== Step 1/4: planning the study area ({label(region)}: {', '.join(model_files(region))}) ==")
         plan(project)
         log("== Step 2/4: downloading the inputs ==")
         layers = input_layers(INPUT) + list(project["benchmarks"] or [])
