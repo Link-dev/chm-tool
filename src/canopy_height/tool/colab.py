@@ -15,7 +15,7 @@
   training stack is copied to the session's local disk before training, because the UNets read random chips
   every epoch and Drive's FUSE mount is slow at that. The copy is used only while its hashes.json equals the
   project's, so a rebuilt stack is never shadowed by an old copy.
-- results_map() / metrics_table() / storage(): the results and the project's disk use.
+- results_map() / compare_figure() / storage(): the results and the project's disk use.
 """
 import errno
 import json
@@ -516,13 +516,6 @@ def _scalebar(ax, width_px, px_m):
     length = max(s * k for s in (1, 2, 5) if s * k <= target)
     label = f"{length / 1000:g} km" if length >= 1000 else f"{length:g} m"
     return AnchoredSizeBar(ax.transData, length / px_m, label, "lower left", pad=0.3, frameon=True, size_vertical=2)
-
-
-def metrics_table(project):
-    """report/metrics.csv as a DataFrame (None before the report stage)."""
-    import pandas as pd
-    f = project.path("report", "metrics.csv")
-    return pd.read_csv(f) if f.exists() else None
 
 
 # measured on test projects (MB per 2.56 km cell) and a 439-cell training region (RF-SLS: ~11 kB per fitted

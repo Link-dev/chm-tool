@@ -175,9 +175,6 @@ hi = float(VMAX) if VMAX.strip() else None
 colab.compare_figure(p, clip=CLIP_TO_STUDY_AREA, vmin=lo, vmax=hi)
 plt.show()
 display(colab.results_map(p, clip=CLIP_TO_STUDY_AREA, vmin=lo, vmax=hi))
-mt = colab.metrics_table(p)
-if mt is not None:
-    display(mt)
 print("maps (GeoTIFF, m):", p.path("maps"))
 print("report:", p.path("report"))
 print("disk use (GB):", colab.storage(p))
