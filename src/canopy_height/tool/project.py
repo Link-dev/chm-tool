@@ -139,7 +139,7 @@ class Project:
         f = self.root / "project.yaml"
         if not f.exists():
             raise FileNotFoundError(f"{self.root} is not a project folder (no project.yaml)")
-        user = yaml.safe_load(open(f, encoding="utf-8")) or {}
+        user = yaml.safe_load(Path(f).read_text(encoding="utf-8")) or {}
         unknown = set(user) - set(DEFAULTS)
         if unknown:
             raise ValueError(f"unknown settings in project.yaml: {sorted(unknown)}")
@@ -251,7 +251,7 @@ class Project:
         st = {s: dict(state="pending") for s in STAGES}
         if self.status_file.exists():
             try:
-                st.update(json.load(open(self.status_file, encoding="utf-8")))
+                st.update(json.loads(Path(self.status_file).read_text(encoding="utf-8")))
             except (json.JSONDecodeError, OSError):
                 pass
         return st
@@ -368,7 +368,7 @@ def lock_owner(project):
     """{'pid', 'started', 'command'} of the live process running this project, else None (stale locks ignored)."""
     f = project.path("logs", "run.lock")
     try:
-        rec = json.load(open(f, encoding="utf-8"))
+        rec = json.loads(Path(f).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
     t = _proc_start(int(rec.get("pid", -1)))

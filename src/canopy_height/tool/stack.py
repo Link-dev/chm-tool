@@ -127,7 +127,7 @@ def read_grid(project):
     f = project.grid_file
     if not f.exists():
         return None
-    g = json.load(open(f, encoding="utf-8"))
+    g = json.loads(Path(f).read_text(encoding="utf-8"))
     return g
 
 

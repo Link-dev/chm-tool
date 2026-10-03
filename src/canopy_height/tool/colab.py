@@ -502,8 +502,8 @@ def compare_figure(project, clip=True, vmin=None, vmax=None, max_px=800, ncols=4
     for ax in list(axes.flat)[n:]:
         ax.axis("off")
     cb = fig.colorbar(im, ax=axes, orientation="horizontal", fraction=0.04, pad=0.02, aspect=50, extend="both")
-    cb.set_label(f"Canopy height (m), input {project['input']}; colour scale {lo:g}-{hi:g} m "
-                 f"({'set' if vmin is not None or vmax is not None else 'automatic: 2nd-98th percentile'})")
+    cb.set_label(f"Canopy height (m), input {project['input']}{'; ' if ncols > 2 else chr(10)}colour scale "
+                 f"{lo:g}-{hi:g} m ({'set' if vmin is not None or vmax is not None else 'automatic: 2nd-98th percentile'})")
     return fig
 
 

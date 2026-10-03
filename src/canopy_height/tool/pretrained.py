@@ -6,7 +6,7 @@ trained on local GEDI labels; UNet-ALS maps the site regions too. A study area i
 only (NaN outside). Only the study-area cells are downloaded (input AE: Earth embedding, annual Sentinel-1/2, DEM;
 no GEDI), at most MAX_CELLS cells of 2.56 km.
 
-    p = pretrained.create("projects/danum", "SER", pretrained.default_aoi("SER"), gee_project="my-project")
+    p = pretrained.create("projects/mrf", "MRF", pretrained.default_aoi("MRF"), gee_project="my-project")
     pretrained.run(p)            # plan, download, mosaic, weights, maps/<model>.tif
 """
 import json

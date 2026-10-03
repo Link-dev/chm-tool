@@ -57,20 +57,21 @@ prints the estimate after planning). The helpers are in `canopy_height.tool.cola
 ## Mapping with the paper's models (no training)
 
 `notebooks/chm_pretrained.ipynb` (module `canopy_height.tool.pretrained`) maps a study area with the published
-models where they were trained, without GEDI labels or training:
+models, without GEDI labels or training:
 
 | Region | Models | Inputs of |
 |---|---|---|
 | CONUS: the 48 contiguous states and DC (TIGER/2018/States on Earth Engine) | UNet-ALS | 2020 |
-| EBR, MRF, MUR, SER, SPC: the site's training region (its 2.56 km training cells) | UNet-SLS, KG-UNet1, KG-UNet2 of the site | 2019 (EBR, MUR, SPC), 2020 (MRF, SER) |
+| EBR, MRF, MUR, SER, SPC: the site's training region (its 2.56 km training cells) | UNet-SLS, KG-UNet1, KG-UNet2 of the site, and UNet-ALS (trained in CONUS) | 2019 (EBR, MUR, SPC), 2020 (MRF, SER) |
 
-Only the study-area cells are downloaded (input AE, no GEDI), at most 200 cells; pixels outside the region stay
-empty, and another year than the models' prints a note. From Python:
+The study area is drawn on a map (if nothing is drawn, the region's default study area of about 7 x 7 km) or
+uploaded as a file. Only the study-area cells are downloaded (input AE, no GEDI), at most 200 cells; pixels outside
+the region stay empty, and another year than the models' prints a note. From Python:
 
 ```python
 from canopy_height.tool import pretrained
-p = pretrained.create("projects/danum", "SER", pretrained.default_aoi("SER"), gee_project="my-ee-project")
-pretrained.run(p)                # maps/UNet-SLS.tif, maps/KG-UNet1.tif, maps/KG-UNet2.tif
+p = pretrained.create("projects/mrf", "MRF", pretrained.default_aoi("MRF"), gee_project="my-ee-project")
+pretrained.run(p)                # maps/UNet-ALS.tif, maps/UNet-SLS.tif, maps/KG-UNet1.tif, maps/KG-UNet2.tif
 ```
 
 ## What the tool does

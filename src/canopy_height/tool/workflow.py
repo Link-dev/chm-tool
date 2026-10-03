@@ -249,7 +249,7 @@ def stale_reason(project, model, retrained=()):
     if not ok:
         return reason or "trained on another training stack"
     try:
-        res = json.load(open(d / "result.json", encoding="utf-8"))
+        res = json.loads((d / "result.json").read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return "unreadable result.json"
     inp = _run_input(res)
