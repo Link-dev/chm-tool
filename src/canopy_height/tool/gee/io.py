@@ -8,11 +8,24 @@ Float layers are unmasked to SENTINEL before the download and SENTINEL becomes N
 CANCEL (set by the download stage on Ctrl+C) stops worker threads at their next chunk or retry wait; the main
 thread is stopped by the KeyboardInterrupt itself.
 """
+import logging
 import random
 import threading
 import time
 
 import numpy as np
+
+
+class _NoExtraSamplesNote(logging.Filter):
+    """Drops libtiff's note on Earth Engine's multi-band GeoTIFFs, which have no ExtraSamples tag for the bands
+    after the first (libtiff >= 4.5 prints it twice for every chunk; the bands are read correctly). Other GDAL
+    messages are kept."""
+
+    def filter(self, record):
+        return "ExtraSamples doesn't match SamplesPerPixel" not in record.getMessage()
+
+
+logging.getLogger("rasterio._env").addFilter(_NoExtraSamplesNote())
 
 RETRIES, RETRY_WAIT, TIMEOUT, BUSY_MAX, MIN_CHUNK = 3, 15, 900, 40, 64
 SENTINEL = -9999.0

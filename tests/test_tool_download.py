@@ -446,3 +446,18 @@ def test_seasonal_recipes_offline():
     t = int(dt.datetime(2020, 3, 1, tzinfo=dt.timezone.utc).timestamp() * 1000)          # UTC month
     assert L.in_season(t - 1, 0) and not L.in_season(t - 1, 1) and L.in_season(t, 1)
     assert set(download.SEASONS) == {"DJF", "MAM", "JJA", "SON"}
+
+
+def test_extra_samples_note_of_earth_engine_tiffs_is_dropped(caplog):
+    """libtiff's ExtraSamples note (printed for every multi-band Earth Engine chunk) is dropped, other GDAL messages
+    are kept."""
+    import logging
+    from canopy_height.tool.gee import io  # noqa: F401  (adds the filter)
+    lg = logging.getLogger("rasterio._env")
+    with caplog.at_level(logging.WARNING, logger="rasterio._env"):
+        lg.warning("CPLE_AppDefined in 1f.tif: TIFFReadDirectory:Sum of Photometric type-related color channels and "
+                   "ExtraSamples doesn't match SamplesPerPixel. Defining non-color channels as ExtraSamples.")
+        lg.warning("CPLE_AppDefined in TIFFReadDirectory:Sum of Photometric type-related color channels and "
+                   "ExtraSamples doesn't match SamplesPerPixel. Defining non-color channels as ExtraSamples.")
+        lg.warning("CPLE_AppDefined in 1f.tif: another message")
+    assert [r.getMessage() for r in caplog.records] == ["CPLE_AppDefined in 1f.tif: another message"]
